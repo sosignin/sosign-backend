@@ -119,7 +119,6 @@ const petitionSchema = mongoose.Schema(
   }
 );
 
-<<<<<<< Updated upstream
 // Pre-save hook to generate slug from title
 petitionSchema.pre('save', async function (next) {
   // Only generate slug if title is modified or slug doesn't exist
@@ -154,13 +153,6 @@ petitionSchema.index({ approved: 1, hidden: 1, createdAt: -1 }); // For default 
 petitionSchema.index({ approved: 1, hidden: 1, numberOfSignatures: -1 }); // For popular active petitions
 petitionSchema.index({ approved: 1, hidden: 1, categories: 1 }); // For filtering by category
 petitionSchema.index({ approved: 1, hidden: 1, country: 1 }); // For filtering by country
-=======
-// Indexes for performance optimization
-petitionSchema.index({ approved: 1, createdAt: -1 }); // For default listing (recent petitions)
-petitionSchema.index({ approved: 1, numberOfSignatures: -1 }); // For popular petitions
-petitionSchema.index({ approved: 1, categories: 1 }); // For filtering by category
-petitionSchema.index({ approved: 1, country: 1 }); // For filtering by country
->>>>>>> Stashed changes
 petitionSchema.index({ "petitionStarter.user": 1 }); // For finding user's petitions
 
 const Petition = mongoose.model("Petition", petitionSchema);
