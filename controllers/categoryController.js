@@ -42,11 +42,21 @@ const createCategory = asyncHandler(async (req, res) => {
         throw new Error("A category with this name already exists");
     }
 
+    // Check if user has already created 2 categories
+    const userId = req.user?._id;
+    if (userId) {
+        const createdCount = await Category.countDocuments({ createdBy: userId });
+        if (createdCount >= 2) {
+            res.status(400);
+            throw new Error("Category creation limit reached. You can only create up to 2 custom categories.");
+        }
+    }
+
     const category = await Category.create({
         name: name.trim(),
         icon: icon || null,
         isDefault: false,
-        createdBy: req.user?._id || null,
+        createdBy: userId || null,
     });
 
     res.status(201).json({

@@ -25,6 +25,9 @@ import captchaRoutes from "./routes/captchaRoutes.js";
 import walletRoutes from "./routes/walletRoutes.js";
 import walletRequestRoutes from "./routes/walletRequestRoutes.js";
 import aadhaarRoutes from "./routes/aadhaarRoutes.js";
+import subAdminRoutes from "./routes/subAdminRoutes.js";
+import otpRoutes from "./routes/otpRoutes.js";
+
 
 // Middleware
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
@@ -156,6 +159,9 @@ app.use("/api/captcha", captchaRoutes);
 app.use("/api/wallet", walletRoutes);
 app.use("/api/wallet-requests", walletRequestRoutes);
 app.use("/api/aadhaar", aadhaarRoutes);
+app.use("/api/subadmin", subAdminRoutes);
+app.use("/api/otp", otpRoutes);
+
 
 // Root endpoint
 app.get("/", (req, res) => {

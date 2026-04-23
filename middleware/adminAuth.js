@@ -13,7 +13,12 @@ export const adminAuth = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "default_jwt_secret_key");
     console.log("Token verified successfully:", decoded);
-    req.admin = decoded; // store decoded admin info in request
+    // Attach admin info including role and permissions
+    req.admin = {
+      ...decoded,
+      role: decoded.role || "superadmin", // legacy tokens without role are super admins
+      permissions: decoded.permissions || [],
+    };
     next();
   } catch (error) {
     console.error("JWT verification error:", error);

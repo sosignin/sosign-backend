@@ -26,7 +26,7 @@ export const adminLogin = (req, res) => {
     password.trim() === ADMIN_PASSWORD.trim()
   ) {
     const token = jwt.sign(
-      { email: ADMIN_EMAIL, id: "admin_user_id" },
+      { email: ADMIN_EMAIL, id: "admin_user_id", role: "superadmin" },
       process.env.JWT_SECRET || "default_jwt_secret_key",
       { expiresIn: "1d" }
     );
@@ -54,7 +54,14 @@ export const getCurrentAdmin = (req, res) => {
       token,
       process.env.JWT_SECRET || "default_jwt_secret_key"
     );
-    return res.status(200).json({ email: decoded.email });
+    return res.status(200).json({
+      admin: {
+        email: decoded.email,
+        name: decoded.name || "Super Admin",
+        role: decoded.role || "superadmin",
+        permissions: decoded.permissions || [],
+      },
+    });
   } catch (error) {
     console.error("JWT verification error in getCurrentAdmin:", error);
     return res.status(401).json({ message: "Invalid token" });
