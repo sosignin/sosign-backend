@@ -8,6 +8,7 @@ import {
   approvePetition,
   getAdminStats,
   getWallets,
+  toggleUserSuspension,
 } from "../controllers/adminController.js";
 import { adminAuth } from "../middleware/adminAuth.js";
 import {
@@ -42,6 +43,9 @@ router.post("/logout", adminLogout);
 
 //get user info
 router.get("/customers", getUsers);
+
+// Toggle user suspension
+router.put("/customers/:id/suspend", adminAuth, toggleUserSuspension);
 
 // Get user wallets
 router.get("/wallets", adminAuth, getWallets);

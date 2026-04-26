@@ -27,6 +27,8 @@ import walletRequestRoutes from "./routes/walletRequestRoutes.js";
 import aadhaarRoutes from "./routes/aadhaarRoutes.js";
 import subAdminRoutes from "./routes/subAdminRoutes.js";
 import otpRoutes from "./routes/otpRoutes.js";
+import crowdfundingRoutes from "./routes/crowdfundingRoutes.js";
+import withdrawalRoutes from "./routes/withdrawalRoutes.js";
 
 
 // Middleware
@@ -161,6 +163,8 @@ app.use("/api/wallet-requests", walletRequestRoutes);
 app.use("/api/aadhaar", aadhaarRoutes);
 app.use("/api/subadmin", subAdminRoutes);
 app.use("/api/otp", otpRoutes);
+app.use("/api/crowdfunding", crowdfundingRoutes);
+app.use("/api/withdrawals", withdrawalRoutes);
 
 
 // Root endpoint

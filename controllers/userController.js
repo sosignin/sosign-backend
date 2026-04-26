@@ -11,6 +11,10 @@ const authUser = asyncHandler(async (req, res) => {
   const user = await User.findOne({ email });
 
   if (user && (await user.matchPassword(password))) {
+    if (user.isSuspended) {
+      res.status(403);
+      throw new Error("Your account has been suspended. Please contact support.");
+    }
     const token = generateToken(res, user._id);
 
     // Populate petitions before sending the response
@@ -195,6 +199,10 @@ const authGoogleUser = asyncHandler(async (req, res) => {
   let user = await User.findOne({ email });
 
   if (user) {
+    if (user.isSuspended) {
+      res.status(403);
+      throw new Error("Your account has been suspended. Please contact support.");
+    }
     // User exists, log them in
     const token = generateToken(res, user._id);
     res.json({

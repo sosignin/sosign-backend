@@ -3,6 +3,7 @@ import User from "../models/userModel.js";
 import Petition from "../models/petitionModel.js";
 import SuccessfulPetition from "../models/successfulPetitionModel.js";
 import Wallet from "../models/walletModel.js";
+import Crowdfunding from "../models/crowdfundingModel.js";
 
 const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;
 
@@ -84,7 +85,7 @@ export const adminLogout = (req, res) => {
 export const getUsers = async (req, res) => {
   try {
     console.log("🔍 Fetching users...");
-    const users = await User.find({}, "name email createdAt"); // Select name, email, and createdAt
+    const users = await User.find({}, "name email createdAt isSuspended"); // Select name, email, createdAt, and isSuspended
     console.log(`👥 Found users: ${users.length}`);
     console.log(
       "📅 Sample user with dates:",
@@ -123,6 +124,33 @@ export const deleteUser = async (req, res) => {
     res.json({ message: "User deleted successfully" });
   } catch (error) {
     console.error("Error deleting user:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Toggle user suspension
+export const toggleUserSuspension = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isSuspended } = req.body;
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.isSuspended = isSuspended;
+    await user.save();
+
+    res.json({
+      message: `User ${isSuspended ? "suspended" : "unsuspended"} successfully`,
+      user: {
+        _id: user._id,
+        isSuspended: user.isSuspended,
+      },
+    });
+  } catch (error) {
+    console.error("Error toggling user suspension:", error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -189,6 +217,14 @@ export const getAdminStats = async (req, res) => {
     const successfulSignatures =
       successfulSignaturesResult[0]?.totalSignatures || 0;
 
+    // Get crowdfunding stats
+    const totalCrowdfunding = await Crowdfunding.countDocuments();
+    const activeCrowdfunding = await Crowdfunding.countDocuments({ approved: true });
+    const crowdfundingResult = await Crowdfunding.aggregate([
+      { $group: { _id: null, totalRaised: { $sum: "$raisedAmount" } } },
+    ]);
+    const totalRaised = crowdfundingResult[0]?.totalRaised || 0;
+
     // Get recent activity (petitions created in last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -211,6 +247,11 @@ export const getAdminStats = async (req, res) => {
         successfulPetitions,
         activeSignatures,
         successfulSignatures,
+      },
+      crowdfunding: {
+        total: totalCrowdfunding,
+        active: activeCrowdfunding,
+        totalRaised: totalRaised,
       },
       recentActivity: recentPetitions + recentSuccessfulPetitions,
     };

@@ -70,7 +70,21 @@ const protect = asyncHandler(async (req, res, next) => {
     throw new Error("User not found");
   }
 
+  if (req.user.isSuspended) {
+    res.status(403);
+    throw new Error("Your account has been suspended. Please contact support.");
+  }
+
   next();
 });
 
-export { protect };
+const admin = (req, res, next) => {
+  if (req.user && req.user.role === "admin") {
+    next();
+  } else {
+    res.status(401);
+    throw new Error("Not authorized as an admin");
+  }
+};
+
+export { protect, admin };
