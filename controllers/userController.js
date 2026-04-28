@@ -1,6 +1,7 @@
 import asyncHandler from "express-async-handler";
 import generateToken from "../utils/generateToken.js";
 import User from "../models/userModel.js";
+import fetch from "node-fetch";
 
 // @desc    Auth user & get token
 // @route   POST /api/users/login
@@ -46,6 +47,26 @@ const authUser = asyncHandler(async (req, res) => {
 // @access  Public
 const registerUser = asyncHandler(async (req, res) => {
   const { name, designation, email, mobileNumber, password } = req.body;
+  
+  // Validate email with ValidEmail.net API
+  try {
+    const emailValidationResponse = await fetch(
+      `https://api.ValidEmail.net/?email=${email}&token=2bfb71cea3dc47ea8f4cf47b5862fa60`
+    );
+    const emailValidationData = await emailValidationResponse.json();
+
+    if (emailValidationData && emailValidationData.IsValid === false) {
+      res.status(400);
+      throw new Error(`The email address provided appears to be invalid or 'fake'. Please use a real email address to join SoSign.`);
+    }
+  } catch (error) {
+    console.error("Email validation API error:", error);
+    // If it's the specific validation error we threw, rethrow it
+    if (res.statusCode === 400) throw error;
+    // For other network errors to the validation API, we might choose to allow registration 
+    // to avoid blocking users if the external service is down, or strictly enforce it.
+    // The user requested a specific message for fake emails.
+  }
 
   const userExists = await User.findOne({ email });
 
