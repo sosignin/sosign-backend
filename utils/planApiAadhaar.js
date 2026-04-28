@@ -104,6 +104,7 @@ const sendAadhaarOtpWithPlanApi = async (aadhaarNumber) => {
   const body = new URLSearchParams({
     Aadhaarid: aadhaarNumber,
     ApiMode: config.apiMode,
+    IsRofferAmountFetch: "No", // Default to No to save hits (1 hit instead of 3)
   });
 
   const response = await fetch(config.sendOtpUrl, {
@@ -150,6 +151,7 @@ const verifyAadhaarOtpWithPlanApi = async ({ aadhaarNumber, refId, otp }) => {
     OTP: otp,
     ReqId: refId,
     ApiMode: config.apiMode,
+    IsRofferAmountFetch: "No",
   });
 
   const response = await fetch(config.verifyOtpUrl, {
