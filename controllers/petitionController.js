@@ -678,6 +678,47 @@ const signPetition = asyncHandler(async (req, res) => {
       res.status(400);
       throw new Error("Aadhar number is required to sign this petition");
     }
+
+    const normalizedAadhar = normalizeAadhaarNumber(aadharNumber);
+    if (!isValidAadhaarNumber(normalizedAadhar)) {
+      res.status(400);
+      throw new Error("Please provide a valid 12-digit Aadhar number");
+    }
+
+    const verificationToken = (
+      req.body.aadhaarVerificationToken ||
+      req.body.aadharVerificationToken ||
+      ""
+    ).trim();
+
+    if (!verificationToken) {
+      res.status(400);
+      throw new Error(
+        "Aadhaar OTP verification is required before signing this petition",
+      );
+    }
+
+    let decodedToken;
+    try {
+      decodedToken = verifyAadhaarVerificationToken(verificationToken);
+    } catch (error) {
+      res.status(401);
+      throw new Error(
+        "Invalid or expired Aadhaar verification. Please verify again.",
+      );
+    }
+
+    if (decodedToken.userId !== req.user._id.toString()) {
+      res.status(403);
+      throw new Error("Aadhaar verification token does not belong to this user");
+    }
+
+    if (decodedToken.aadhaarHash !== hashAadhaarNumber(normalizedAadhar)) {
+      res.status(400);
+      throw new Error(
+        "Verified Aadhaar does not match the Aadhaar number entered",
+      );
+    }
   }
 
   // Accept optional referral code from body or query
