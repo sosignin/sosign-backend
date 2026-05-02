@@ -436,7 +436,7 @@ const getPetitionById = asyncHandler(async (req, res) => {
         "name email designation uniqueCode profilePicture",
       )
       .select({ signatures: { $slice: -20 } })
-      .populate("signatures.user", "name email uniqueCode")
+      .populate("signatures.user", "name email uniqueCode designation profilePicture")
       .populate("signatures.referral.owner", "name email uniqueCode");
   }
 
@@ -448,12 +448,55 @@ const getPetitionById = asyncHandler(async (req, res) => {
         "name email designation uniqueCode profilePicture",
       )
       .select({ signatures: { $slice: -20 } })
-      .populate("signatures.user", "name email uniqueCode")
+      .populate("signatures.user", "name email uniqueCode designation profilePicture")
       .populate("signatures.referral.owner", "name email uniqueCode");
   }
 
   if (petition) {
-    res.status(200).json(petition);
+    // Find notable signers (Celebrities, Politicians, NGOs, etc.)
+    // We search across ALL signatures for this petition
+    const notableKeywords = [
+      "Politician", "MP", "MLA", "Minister", "Chief Minister", "CM", "PM", "Prime Minister",
+      "NGO", "Foundation", "Trust", "Political Party", "Social Worker", "Activists", "Activist",
+      "Influencer", "Actor", "Celebrity", "Artist", "Chairman", "President", "Secretary",
+      "IAS", "IPS", "IRS", "IFS", "Doctor", "Scientist", "Professor", "Advocate", "Judge",
+      "Mayor", "Councillor", "Journalist", "Editor", "Press", "Bureaucrat", "Officer"
+    ];
+    
+    const notableSigners = await Petition.aggregate([
+      { $match: { _id: petition._id } },
+      { $unwind: "$signatures" },
+      {
+        $lookup: {
+          from: "users",
+          localField: "signatures.user",
+          foreignField: "_id",
+          as: "userDetails"
+        }
+      },
+      { $unwind: "$userDetails" },
+      {
+        $match: {
+          "userDetails.designation": { $regex: notableKeywords.join("|"), $options: "i" }
+        }
+      },
+      { $limit: 10 },
+      {
+        $project: {
+          _id: "$userDetails._id",
+          name: "$userDetails.name",
+          designation: "$userDetails.designation",
+          profilePicture: "$userDetails.profilePicture",
+          uniqueCode: "$userDetails.uniqueCode"
+        }
+      }
+    ]);
+
+    // Convert Mongoose document to plain object to add custom field
+    const petitionObj = petition.toObject();
+    petitionObj.notableSigners = notableSigners;
+
+    res.status(200).json(petitionObj);
   } else {
     res.status(404);
     throw new Error("Petition not found");
