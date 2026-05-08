@@ -68,11 +68,20 @@ const registerUser = asyncHandler(async (req, res) => {
     // The user requested a specific message for fake emails.
   }
 
-  const userExists = await User.findOne({ email });
+  const userExists = await User.findOne({ 
+    $or: [
+      { email }, 
+      { mobileNumber: mobileNumber }
+    ] 
+  });
 
   if (userExists) {
     res.status(400);
-    throw new Error("User already exists");
+    if (userExists.email === email) {
+      throw new Error("User with this email already exists");
+    } else {
+      throw new Error("This mobile number is already in use. Please use a different number.");
+    }
   }
 
   const user = await User.create({

@@ -14,7 +14,7 @@ const sanitizeToken = (token = "") => {
   return String(token).trim().replace(/^"|"$/g, "");
 };
 
-const extractCandidateTokens = (req) => {
+export const extractCandidateTokens = (req) => {
   const tokens = [];
 
   const bearerToken = getBearerToken(req.headers.authorization);

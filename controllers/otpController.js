@@ -1,5 +1,8 @@
 import asyncHandler from "express-async-handler";
 import { sendOTP, verifyOTP } from "../utils/smsService.js";
+import User from "../models/userModel.js";
+import jwt from "jsonwebtoken";
+import { extractCandidateTokens } from "../middleware/authMiddleware.js";
 
 // @desc    Send OTP to mobile number
 // @route   POST /api/otp/send
@@ -17,6 +20,33 @@ const sendOtp = asyncHandler(async (req, res) => {
   if (cleanPhone.length !== 10) {
     res.status(400);
     throw new Error("Invalid phone number. Must be 10 digits.");
+  }
+
+  // Check if mobile number is already in use
+  const existingUser = await User.findOne({ mobileNumber: cleanPhone });
+  if (existingUser) {
+    // Check if the mobile number belongs to the current logged-in user
+    let isOwnNumber = false;
+    const tokenCandidates = extractCandidateTokens(req);
+    
+    if (tokenCandidates.length > 0) {
+      for (const token of tokenCandidates) {
+        try {
+          const decoded = jwt.verify(token, process.env.JWT_SECRET || "default_jwt_secret_key");
+          if (decoded.userId === existingUser._id.toString()) {
+            isOwnNumber = true;
+            break;
+          }
+        } catch (err) {
+          // Ignore token errors and check next token
+        }
+      }
+    }
+
+    if (!isOwnNumber) {
+      res.status(400);
+      throw new Error("This mobile number is already in use. Please use a different number.");
+    }
   }
 
   try {
