@@ -54,16 +54,49 @@ const getCommentsByPetition = asyncHandler(async (req, res) => {
     throw new Error("Petition not found");
   }
 
+  // Query criteria: petition ID and (isApproved OR is author)
+  const query = { petition: petitionId };
+  if (req.user) {
+    query.$or = [{ isApproved: true }, { user: req.user._id }];
+  } else {
+    query.isApproved = true;
+  }
+
   // Get comments with pagination
-  const comments = await Comment.find({ petition: petitionId })
+  const comments = await Comment.find(query)
     .populate("user", "name email designation")
     .populate("likes.user", "name")
     .populate("replies.user", "name email designation")
     .sort({ createdAt: -1 })
     .skip(skip)
-    .limit(limit);
+    .limit(limit)
+    .lean();
 
-  const totalComments = await Comment.countDocuments({ petition: petitionId });
+  // Enhance comments with status flags for the frontend
+  const userId = req.user ? req.user._id.toString() : null;
+  comments.forEach((comment) => {
+    // Check if current user is the author of the parent comment
+    const commentAuthorId = comment.user?._id ? comment.user._id.toString() : comment.user?.toString();
+    comment.isAuthor = !!(userId && commentAuthorId === userId);
+    comment.isPending = !comment.isApproved;
+
+    // Filter replies and add flags
+    if (comment.replies) {
+      comment.replies = comment.replies.filter((reply) => {
+        const isApproved = reply.isApproved === true;
+        const replyAuthorId = reply.user?._id ? reply.user._id.toString() : reply.user?.toString();
+        const isAuthor = !!(userId && replyAuthorId === userId);
+        
+        // Add flags to reply object
+        reply.isAuthor = isAuthor;
+        reply.isPending = !isApproved;
+
+        return isApproved || isAuthor;
+      });
+    }
+  });
+
+  const totalComments = await Comment.countDocuments(query);
 
   res.status(200).json({
     success: true,
@@ -200,11 +233,12 @@ const addReply = asyncHandler(async (req, res) => {
     throw new Error("Comment not found");
   }
 
-  // Add reply
+  // Add reply with isApproved: false (needs admin approval)
   const reply = {
     user: req.user._id,
     content: content.trim(),
     createdAt: new Date(),
+    isApproved: false,
   };
 
   comment.replies.push(reply);
@@ -219,7 +253,7 @@ const addReply = asyncHandler(async (req, res) => {
 
   res.status(201).json({
     success: true,
-    message: "Reply added successfully",
+    message: "Reply submitted for approval",
     reply: newReply,
   });
 });
@@ -383,18 +417,113 @@ const getUserCommentsPaginated = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get all unapproved comments (Admin only)
+// @desc    Get all unapproved comments and replies (Admin only)
 // @route   GET /api/admin/comments/unapproved
 // @access  Admin
 const getUnapprovedComments = asyncHandler(async (req, res) => {
-  const comments = await Comment.find({ isApproved: false })
+  // Find comments that are unapproved OR have unapproved replies
+  const comments = await Comment.find({
+    $or: [{ isApproved: false }, { "replies.isApproved": false }],
+  })
     .populate("user", "name email designation")
-    .populate("petition", "title _id")
+    .populate("petition") // Populate full petition to get details needed by admin UI
+    .populate("replies.user", "name email designation")
     .sort({ createdAt: -1 });
+
+  // Flatten unapproved comments and replies for the admin UI
+  const unapprovedItems = [];
+  comments.forEach((comment) => {
+    // If the parent comment is unapproved, add it
+    if (!comment.isApproved) {
+      unapprovedItems.push(comment);
+    }
+
+    // Add any unapproved replies as individual items
+    if (comment.replies && comment.replies.length > 0) {
+      comment.replies.forEach((reply) => {
+        if (!reply.isApproved) {
+          unapprovedItems.push({
+            _id: `reply-${comment._id}-${reply._id}`, // Special ID format for replies
+            content: `[REPLY] ${reply.content}`,
+            user: reply.user,
+            createdAt: reply.createdAt,
+            petition: comment.petition,
+            isReply: true,
+            parentCommentId: comment._id,
+            replyId: reply._id,
+          });
+        }
+      });
+    }
+  });
+
+  // Sort by date (newest first)
+  unapprovedItems.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   res.status(200).json({
     success: true,
-    comments,
+    comments: unapprovedItems,
+  });
+});
+
+// @desc    Approve a reply (Admin only)
+// @route   PUT /api/admin/comments/:commentId/replies/:replyId/approve
+// @access  Admin
+const approveReply = asyncHandler(async (req, res) => {
+  const { commentId, replyId } = req.params;
+
+  const comment = await Comment.findById(commentId);
+
+  if (!comment) {
+    res.status(404);
+    throw new Error("Comment not found");
+  }
+
+  const reply = comment.replies.id(replyId);
+
+  if (!reply) {
+    res.status(404);
+    throw new Error("Reply not found");
+  }
+
+  reply.isApproved = true;
+  reply.approvedAt = new Date();
+  reply.approvedBy = req.admin?.username || "admin";
+
+  await comment.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Reply approved successfully",
+  });
+});
+
+// @desc    Reject/Delete a reply (Admin only)
+// @route   DELETE /api/admin/comments/:commentId/replies/:replyId/reject
+// @access  Admin
+const rejectReply = asyncHandler(async (req, res) => {
+  const { commentId, replyId } = req.params;
+
+  const comment = await Comment.findById(commentId);
+
+  if (!comment) {
+    res.status(404);
+    throw new Error("Comment not found");
+  }
+
+  const reply = comment.replies.id(replyId);
+
+  if (!reply) {
+    res.status(404);
+    throw new Error("Reply not found");
+  }
+
+  reply.remove();
+  await comment.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Reply rejected and deleted successfully",
   });
 });
 
@@ -402,7 +531,40 @@ const getUnapprovedComments = asyncHandler(async (req, res) => {
 // @route   PUT /api/admin/comments/:id/approve
 // @access  Admin
 const approveComment = asyncHandler(async (req, res) => {
-  const comment = await Comment.findById(req.params.id);
+  const id = req.params.id;
+
+  // Handle reply approval if ID matches our special format
+  if (id.startsWith("reply-")) {
+    const parts = id.split("-");
+    const commentId = parts[1];
+    const replyId = parts[2];
+
+    const comment = await Comment.findById(commentId);
+    if (!comment) {
+      res.status(404);
+      throw new Error("Comment not found");
+    }
+
+    const reply = comment.replies.id(replyId);
+    if (!reply) {
+      res.status(404);
+      throw new Error("Reply not found");
+    }
+
+    reply.isApproved = true;
+    reply.approvedAt = new Date();
+    reply.approvedBy = req.admin?.username || "admin";
+
+    await comment.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Reply approved successfully",
+    });
+  }
+
+  // Standard comment approval
+  const comment = await Comment.findById(id);
 
   if (!comment) {
     res.status(404);
@@ -425,14 +587,44 @@ const approveComment = asyncHandler(async (req, res) => {
 // @route   DELETE /api/admin/comments/:id/reject
 // @access  Admin
 const rejectComment = asyncHandler(async (req, res) => {
-  const comment = await Comment.findById(req.params.id);
+  const id = req.params.id;
+
+  // Handle reply rejection if ID matches our special format
+  if (id.startsWith("reply-")) {
+    const parts = id.split("-");
+    const commentId = parts[1];
+    const replyId = parts[2];
+
+    const comment = await Comment.findById(commentId);
+    if (!comment) {
+      res.status(404);
+      throw new Error("Comment not found");
+    }
+
+    const reply = comment.replies.id(replyId);
+    if (!reply) {
+      res.status(404);
+      throw new Error("Reply not found");
+    }
+
+    reply.remove();
+    await comment.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Reply rejected and deleted successfully",
+    });
+  }
+
+  // Standard comment rejection
+  const comment = await Comment.findById(id);
 
   if (!comment) {
     res.status(404);
     throw new Error("Comment not found");
   }
 
-  await Comment.findByIdAndDelete(req.params.id);
+  await Comment.findByIdAndDelete(id);
 
   res.status(200).json({
     success: true,
@@ -454,4 +646,6 @@ export {
   getUnapprovedComments,
   approveComment,
   rejectComment,
+  approveReply,
+  rejectReply,
 };

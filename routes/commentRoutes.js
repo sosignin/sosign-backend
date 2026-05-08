@@ -13,8 +13,10 @@ import {
   getUnapprovedComments,
   approveComment,
   rejectComment,
+  approveReply,
+  rejectReply,
 } from "../controllers/commentController.js";
-import { protect } from "../middleware/authMiddleware.js";
+import { protect, getOptionalUser } from "../middleware/authMiddleware.js";
 import { adminAuth } from "../middleware/adminAuth.js";
 
 const router = express.Router();
@@ -23,7 +25,7 @@ const router = express.Router();
 router.route("/").post(protect, createComment);
 router.route("/user/recent").get(protect, getUserRecentComments);
 router.route("/user/all").get(protect, getUserCommentsPaginated);
-router.route("/petition/:petitionId").get(getCommentsByPetition);
+router.route("/petition/:petitionId").get(getOptionalUser, getCommentsByPetition);
 router
   .route("/:id")
   .put(protect, updateComment)
@@ -41,5 +43,7 @@ router
 router.route("/admin/unapproved").get(adminAuth, getUnapprovedComments);
 router.route("/admin/:id/approve").put(adminAuth, approveComment);
 router.route("/admin/:id/reject").delete(adminAuth, rejectComment);
+router.route("/admin/:commentId/replies/:replyId/approve").put(adminAuth, approveReply);
+router.route("/admin/:commentId/replies/:replyId/reject").delete(adminAuth, rejectReply);
 
 export default router;

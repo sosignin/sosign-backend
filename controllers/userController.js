@@ -35,6 +35,8 @@ const authUser = asyncHandler(async (req, res) => {
       socialLinks: userWithPetitions.socialLinks || {},
       petitions: userWithPetitions.petitions, // Include petitions data
       token: token, // Include token in response
+      hasPassword: !!user.password,
+      googleId: user.googleId,
     });
   } else {
     res.status(401);
@@ -106,6 +108,8 @@ const registerUser = asyncHandler(async (req, res) => {
       profilePicture: user.profilePicture || "",
       socialLinks: user.socialLinks || {},
       token: token, // Include token in response
+      hasPassword: !!user.password,
+      googleId: user.googleId,
     });
   } else {
     res.status(400);
@@ -154,6 +158,8 @@ const getUserProfile = asyncHandler(async (req, res) => {
       profilePicture: userWithPetitions.profilePicture || "",
       socialLinks: userWithPetitions.socialLinks || {},
       petitions: userWithPetitions.petitions,
+      hasPassword: !!userWithPetitions.password,
+      googleId: userWithPetitions.googleId,
     });
   } else {
     res.status(404);
@@ -233,6 +239,12 @@ const authGoogleUser = asyncHandler(async (req, res) => {
       res.status(403);
       throw new Error("Your account has been suspended. Please contact support.");
     }
+    // If user exists but googleId is missing or different, update it
+    if (user.googleId !== uid) {
+      user.googleId = uid;
+      await user.save();
+    }
+
     // User exists, log them in
     const token = generateToken(res, user._id);
     res.json({
@@ -248,6 +260,8 @@ const authGoogleUser = asyncHandler(async (req, res) => {
       socialLinks: user.socialLinks || {},
       petitions: user.petitions, // Include petitions data
       token: token, // Include token in response
+      hasPassword: !!user.password,
+      googleId: user.googleId,
     });
   } else {
     // User does not exist, register them
@@ -275,6 +289,8 @@ const authGoogleUser = asyncHandler(async (req, res) => {
         socialLinks: user.socialLinks || {},
         petitions: user.petitions, // Include petitions data
         token: token, // Include token in response
+        hasPassword: !!user.password,
+        googleId: user.googleId,
       });
     } else {
       res.status(400);
@@ -422,7 +438,59 @@ const resetPassword = asyncHandler(async (req, res) => {
   res.status(200).json({ message: "Password has been reset successfully. You can now login with your new password." });
 });
 
-export { authUser, registerUser, logoutUser, getUserProfile, updateUserProfile, authGoogleUser, forgotPassword, resetPassword };
+// @desc    Change or set password
+// @route   PUT /api/users/change-password
+// @access  Private
+const changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  const user = await User.findById(req.user._id);
+
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  // Validate new password
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*(),.?":{}|<>]).{6,}$/;
+  if (!passwordRegex.test(newPassword)) {
+    res.status(400);
+    throw new Error("Password must be at least 6 characters with uppercase, lowercase, and special character");
+  }
+
+  // If user already has a password, verify the current one
+  // We check if password exists and is not an empty string
+  const hasExistingPassword = user.password && user.password.length > 0;
+  
+  if (hasExistingPassword) {
+    // For users with an existing password, we normally require the current one.
+    // Exception: If the user is a Google-linked user, we allow them to set/change 
+    // their password without the current one since they are already verified via Google.
+    if (!currentPassword && !user.googleId) {
+      res.status(400);
+      throw new Error("Please provide your current password");
+    }
+
+    // If current password is provided, we must verify it even for Google users
+    if (currentPassword) {
+      const isMatch = await user.matchPassword(currentPassword);
+      if (!isMatch) {
+        res.status(401);
+        throw new Error("Incorrect current password");
+      }
+    }
+  }
+
+  user.password = newPassword;
+  await user.save();
+
+  res.status(200).json({ 
+    success: true,
+    message: user.password ? "Password updated successfully" : "Password created successfully",
+    hasPassword: true 
+  });
+});
+
+export { authUser, registerUser, logoutUser, getUserProfile, updateUserProfile, authGoogleUser, forgotPassword, resetPassword, changePassword };
 
 // @desc    Get public user info by unique code
 // @route   GET /api/users/code/:code

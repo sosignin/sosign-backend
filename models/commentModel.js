@@ -61,6 +61,16 @@ const commentSchema = mongoose.Schema(
         editedAt: {
           type: Date,
         },
+        isApproved: {
+          type: Boolean,
+          default: false,
+        },
+        approvedAt: {
+          type: Date,
+        },
+        approvedBy: {
+          type: String,
+        },
       },
     ],
     isApproved: {

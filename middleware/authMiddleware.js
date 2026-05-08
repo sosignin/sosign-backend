@@ -79,7 +79,7 @@ const protect = asyncHandler(async (req, res, next) => {
 });
 
 const admin = (req, res, next) => {
-  if (req.user && req.user.role === "admin") {
+  if (req.user && (req.user.role === "admin" || req.user.role === "superadmin")) {
     next();
   } else {
     res.status(401);
@@ -87,4 +87,31 @@ const admin = (req, res, next) => {
   }
 };
 
-export { protect, admin };
+const getOptionalUser = asyncHandler(async (req, res, next) => {
+  const tokenCandidates = extractCandidateTokens(req);
+
+  if (tokenCandidates.length) {
+    let decodedToken = null;
+    for (const token of tokenCandidates) {
+      try {
+        decodedToken = jwt.verify(
+          token,
+          process.env.JWT_SECRET || "default_jwt_secret_key"
+        );
+        break;
+      } catch (error) {
+        // Continue to next candidate
+      }
+    }
+
+    if (decodedToken) {
+      const user = await User.findById(decodedToken.userId).select("-password");
+      if (user && !user.isSuspended) {
+        req.user = user;
+      }
+    }
+  }
+  next();
+});
+
+export { protect, admin, getOptionalUser };

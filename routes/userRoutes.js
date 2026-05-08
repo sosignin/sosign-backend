@@ -9,6 +9,7 @@ import {
   getUserByCode,
   forgotPassword,
   resetPassword,
+  changePassword,
 } from "../controllers/userController.js";
 import { protect } from "../middleware/authMiddleware.js";
 import profileUpload from "../middleware/profileUpload.js";
@@ -25,5 +26,6 @@ router.post("/google-auth", authGoogleUser);
 router.get("/code/:code", getUserByCode);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
+router.put("/change-password", protect, changePassword);
 
 export default router;
