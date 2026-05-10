@@ -196,11 +196,14 @@ const createPetition = asyncHandler(async (req, res) => {
     aadharNumber: normalizedStarterAadhaar,
   };
 
-  // Handle image upload to Cloudinary if file is present
-  let imageUrl = "";
-  if (req.file) {
+  // Handle multiple image uploads to Cloudinary if files are present
+  let imageUrls = [];
+  let primaryImageUrl = "";
+  
+  if (req.files && req.files.length > 0) {
     try {
-      imageUrl = req.file.path; // Cloudinary URL from multer-storage-cloudinary
+      imageUrls = req.files.map(file => file.path); // Array of Cloudinary URLs
+      primaryImageUrl = imageUrls[0]; // Set first image as primary
     } catch (error) {
       res.status(500);
       throw new Error("Image upload failed");
@@ -214,7 +217,8 @@ const createPetition = asyncHandler(async (req, res) => {
     categories: parsedCategories,
     petitionDetails: {
       ...parsedPetitionDetails,
-      image: imageUrl,
+      image: primaryImageUrl,
+      images: imageUrls,
     },
     petitionStarter: {
       ...parsedPetitionStarter,
@@ -1038,6 +1042,62 @@ const getSignedPetitions = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Get all signers for a petition
+// @route   GET /api/petitions/:id/signers
+// @access  Private (Creator or Admin only)
+const getPetitionSigners = asyncHandler(async (req, res) => {
+  const petition = await Petition.findById(req.params.id)
+    .populate("signatures.user", "name email profilePicture designation uniqueCode")
+    .populate("signatures.referral.owner", "name email uniqueCode");
+
+  if (!petition) {
+    res.status(404);
+    throw new Error("Petition not found");
+  }
+
+  // Check if user is the creator or an admin
+  const isCreator = petition.petitionStarter.user.toString() === req.user._id.toString();
+  const isAdmin = req.admin; // Assuming req.admin is set by adminAuth middleware
+
+  if (!isCreator && !isAdmin) {
+    res.status(403);
+    throw new Error("Not authorized to view signers for this petition");
+  }
+
+  res.status(200).json(petition.signatures);
+});
+
+// @desc    Get all signers for ALL petitions created by the user
+// @route   GET /api/petitions/my-petitions/signers
+// @access  Private
+const getUserPetitionsSigners = asyncHandler(async (req, res) => {
+  const petitions = await Petition.find({ "petitionStarter.user": req.user._id })
+    .populate("signatures.user", "name email profilePicture designation uniqueCode")
+    .populate("signatures.referral.owner", "name email uniqueCode")
+    .select("title signatures");
+
+  if (!petitions) {
+    res.status(404);
+    throw new Error("No petitions found for this user");
+  }
+
+  // Flatten signatures and add petition title to each
+  let allSigners = [];
+  petitions.forEach(petition => {
+    const signersWithTitle = petition.signatures.map(sig => ({
+      ...sig.toObject(),
+      petitionTitle: petition.title,
+      petitionId: petition._id
+    }));
+    allSigners = [...allSigners, ...signersWithTitle];
+  });
+
+  // Sort by date newest first
+  allSigners.sort((a, b) => new Date(b.signedAt) - new Date(a.signedAt));
+
+  res.status(200).json(allSigners);
+});
+
 export {
   createPetition,
   getPetitions,
@@ -1052,4 +1112,6 @@ export {
   getPopularPetitions,
   getPetitionStats,
   getSignedPetitions,
+  getPetitionSigners,
+  getUserPetitionsSigners,
 };

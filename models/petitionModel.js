@@ -42,7 +42,8 @@ const petitionSchema = mongoose.Schema(
     petitionDetails: {
       problem: { type: String, required: true },
       solution: { type: String, required: true },
-      image: { type: String }, // URL to the image
+      image: { type: String }, // URL to the primary image (for backward compatibility)
+      images: [{ type: String }], // Array of URLs for all images
       videoUrl: { type: String },
     },
     petitionStarter: {
