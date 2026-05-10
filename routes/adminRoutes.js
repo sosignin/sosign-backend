@@ -5,7 +5,10 @@ import {
   getCurrentAdmin,
   getUsers,
   getUnapprovedPetitions,
+  getRejectedPetitions,
   approvePetition,
+  rejectPetition,
+  resetPetition,
   getAdminStats,
   getWallets,
   toggleUserSuspension,
@@ -52,8 +55,11 @@ router.get("/wallets", adminAuth, getWallets);
 
 // Get unapproved petitions
 router.get("/petitions/unapproved", adminAuth, getUnapprovedPetitions);
+router.get("/petitions/rejected", adminAuth, getRejectedPetitions);
 // Approve petition
 router.put("/petitions/:id/approve", adminAuth, approvePetition);
+router.put("/petitions/:id/reject", adminAuth, rejectPetition);
+router.put("/petitions/:id/reset", adminAuth, resetPetition);
 
 // Admin petition management routes
 router.get("/petitions", adminAuth, getAllPetitionsForAdmin);

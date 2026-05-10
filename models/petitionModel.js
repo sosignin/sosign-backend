@@ -87,6 +87,14 @@ const petitionSchema = mongoose.Schema(
         },
       },
     ],
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+    },
+    rejectionReason: {
+      type: String,
+    },
     approved: {
       type: Boolean,
       default: false,

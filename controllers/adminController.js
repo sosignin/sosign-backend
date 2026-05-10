@@ -155,16 +155,33 @@ export const toggleUserSuspension = async (req, res) => {
   }
 };
 
+import Notification from "../models/notificationModel.js";
+
 // Get all unapproved petitions
 export const getUnapprovedPetitions = async (req, res) => {
   try {
-    const petitions = await Petition.find({ approved: false })
+    const petitions = await Petition.find({
+      status: "pending",
+    })
       .populate("petitionStarter.user", "name email")
       .sort({ createdAt: -1 });
     res.status(200).json({ petitions });
   } catch (error) {
     console.error("Error fetching unapproved petitions:", error);
     res.status(500).json({ message: "Error fetching unapproved petitions" });
+  }
+};
+
+// Get all rejected petitions (history)
+export const getRejectedPetitions = async (req, res) => {
+  try {
+    const petitions = await Petition.find({ status: "rejected" })
+      .populate("petitionStarter.user", "name email")
+      .sort({ updatedAt: -1 });
+    res.status(200).json({ petitions });
+  } catch (error) {
+    console.error("Error fetching rejected petitions:", error);
+    res.status(500).json({ message: "Error fetching rejected petitions" });
   }
 };
 
@@ -176,11 +193,72 @@ export const approvePetition = async (req, res) => {
       return res.status(404).json({ message: "Petition not found" });
     }
     petition.approved = true;
+    petition.status = "approved";
     await petition.save();
+
+    // Create notification
+    await Notification.create({
+      recipient: petition.petitionStarter.user,
+      title: "Petition Approved",
+      message: `Your petition "${petition.title}" has been approved and is now live!`,
+      type: "success",
+      relatedId: petition._id,
+    });
+
     res.status(200).json({ message: "Petition approved successfully" });
   } catch (error) {
     console.error("Error approving petition:", error);
     res.status(500).json({ message: "Error approving petition" });
+  }
+};
+
+// Reject a petition
+export const rejectPetition = async (req, res) => {
+  try {
+    const { reason } = req.body;
+    const petition = await Petition.findById(req.params.id);
+    if (!petition) {
+      return res.status(404).json({ message: "Petition not found" });
+    }
+
+    petition.approved = false;
+    petition.status = "rejected";
+    petition.rejectionReason = reason || "Does not meet our community guidelines.";
+    await petition.save();
+
+    // Create notification
+    await Notification.create({
+      recipient: petition.petitionStarter.user,
+      title: "Petition Rejected",
+      message: `Your petition "${petition.title}" was rejected. Reason: ${petition.rejectionReason}`,
+      type: "error",
+      relatedId: petition._id,
+    });
+
+    res.status(200).json({ message: "Petition rejected successfully" });
+  } catch (error) {
+    console.error("Error rejecting petition:", error);
+    res.status(500).json({ message: "Error rejecting petition" });
+  }
+};
+
+// Reset petition to pending
+export const resetPetition = async (req, res) => {
+  try {
+    const petition = await Petition.findById(req.params.id);
+    if (!petition) {
+      return res.status(404).json({ message: "Petition not found" });
+    }
+
+    petition.status = "pending";
+    petition.approved = false;
+    petition.rejectionReason = undefined;
+    await petition.save();
+
+    res.status(200).json({ message: "Petition reset to pending" });
+  } catch (error) {
+    console.error("Error resetting petition:", error);
+    res.status(500).json({ message: "Error resetting petition" });
   }
 };
 
