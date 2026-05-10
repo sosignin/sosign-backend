@@ -147,71 +147,91 @@ const verifyAadhaarOtp = asyncHandler(async (req, res) => {
 // @route   POST /api/aadhaar/verify-kyc
 // @access  Private
 const verifyAadhaarKyc = asyncHandler(async (req, res) => {
-  // Multer populates req.files as an object keyed by field name
-  const frontFile = req.files?.FrontImage?.[0];
-  const backFile = req.files?.BackImage?.[0];
-
-  if (!frontFile || !backFile) {
-    res.status(400);
-    throw new Error(
-      "Both front and back Aadhaar card images are required",
-    );
-  }
-
-  // Check if user is already KYC verified
-  const existingUser = await User.findById(req.user._id);
-  if (existingUser?.aadhaarKyc?.status === "verified") {
-    res.status(400);
-    throw new Error("Your Aadhaar KYC is already verified");
-  }
-
-  let ocrResult;
   try {
-    ocrResult = await verifyAadhaarByImages(
-      frontFile.buffer,
-      backFile.buffer,
-      frontFile.originalname,
-      backFile.originalname,
-    );
-  } catch (error) {
-    const message = error?.message || "Aadhaar OCR verification failed";
+    // Multer populates req.files as an object keyed by field name
+    const frontFile = req.files?.FrontImage?.[0];
+    const backFile = req.files?.BackImage?.[0];
 
-    if (/whitelist|ip address/i.test(message)) {
-      res.status(403);
+    if (!frontFile || !backFile) {
+      res.status(400);
       throw new Error(
-        `${message}. Please whitelist your server/public IP in the PlanAPI dashboard.`,
+        "Both front and back Aadhaar card images are required",
       );
     }
 
-    res.status(502);
-    throw new Error(message);
+    console.log("[KYC] Files received - Front:", frontFile.originalname, frontFile.size, "bytes, Back:", backFile.originalname, backFile.size, "bytes");
+
+    // Check if user is already KYC verified
+    const existingUser = await User.findById(req.user._id);
+    if (existingUser?.aadhaarKyc?.status === "verified") {
+      res.status(400);
+      throw new Error("Your Aadhaar KYC is already verified");
+    }
+
+    let ocrResult;
+    try {
+      ocrResult = await verifyAadhaarByImages(
+        frontFile.buffer,
+        backFile.buffer,
+        frontFile.originalname,
+        backFile.originalname,
+      );
+    } catch (error) {
+      console.error("[KYC] PlanAPI OCR error:", error?.message || error);
+      const message = error?.message || "Aadhaar OCR verification failed";
+
+      if (/whitelist|ip address/i.test(message)) {
+        return res.status(403).json({
+          success: false,
+          message: `${message}. Please whitelist your server IP in the PlanAPI dashboard.`,
+        });
+      }
+
+      return res.status(400).json({
+        success: false,
+        message: message,
+      });
+    }
+
+    console.log("[KYC] OCR result:", JSON.stringify({ aadhaarNumber: ocrResult.aadhaarNumber, name: ocrResult.name, valid: ocrResult.valid }));
+
+    // Update user's KYC fields
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    user.aadhaarKyc = {
+      status: "verified",
+      maskedAadhaar: ocrResult.aadhaarNumber || "",
+      name: ocrResult.name || "",
+      dob: ocrResult.dob || "",
+      address: ocrResult.address || "",
+      state: ocrResult.state || "",
+      pincode: ocrResult.pincode || "",
+      verifiedAt: new Date(),
+    };
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Aadhaar KYC verified successfully",
+      aadhaarKyc: user.aadhaarKyc,
+    });
+  } catch (error) {
+    console.error("[KYC] Unexpected error:", error?.message || error);
+    // If headers already sent, let Express handle it
+    if (res.headersSent) return;
+    const statusCode = res.statusCode && res.statusCode !== 200 ? res.statusCode : 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error?.message || "Aadhaar KYC verification failed",
+    });
   }
-
-  // Update user's KYC fields
-  const user = await User.findById(req.user._id);
-  if (!user) {
-    res.status(404);
-    throw new Error("User not found");
-  }
-
-  user.aadhaarKyc = {
-    status: "verified",
-    maskedAadhaar: ocrResult.aadhaarNumber || "",
-    name: ocrResult.name || "",
-    dob: ocrResult.dob || "",
-    address: ocrResult.address || "",
-    state: ocrResult.state || "",
-    pincode: ocrResult.pincode || "",
-    verifiedAt: new Date(),
-  };
-
-  await user.save();
-
-  res.status(200).json({
-    success: true,
-    message: "Aadhaar KYC verified successfully",
-    aadhaarKyc: user.aadhaarKyc,
-  });
 });
 
 export { sendAadhaarOtp, verifyAadhaarOtp, verifyAadhaarKyc };
