@@ -12,6 +12,8 @@ import {
   sendAadhaarOtpWithPlanApi,
   verifyAadhaarOtpWithPlanApi,
 } from "../utils/planApiAadhaar.js";
+import { verifyAadhaarByImages } from "../utils/planApiAadhaarOcr.js";
+import User from "../models/userModel.js";
 
 // @desc    Send Aadhaar OTP for verification
 // @route   POST /api/aadhaar/send-otp
@@ -141,4 +143,76 @@ const verifyAadhaarOtp = asyncHandler(async (req, res) => {
   });
 });
 
-export { sendAadhaarOtp, verifyAadhaarOtp };
+// @desc    Verify Aadhaar KYC via image OCR (front + back)
+// @route   POST /api/aadhaar/verify-kyc
+// @access  Private
+const verifyAadhaarKyc = asyncHandler(async (req, res) => {
+  // Multer populates req.files as an object keyed by field name
+  const frontFile = req.files?.FrontImage?.[0];
+  const backFile = req.files?.BackImage?.[0];
+
+  if (!frontFile || !backFile) {
+    res.status(400);
+    throw new Error(
+      "Both front and back Aadhaar card images are required",
+    );
+  }
+
+  // Check if user is already KYC verified
+  const existingUser = await User.findById(req.user._id);
+  if (existingUser?.aadhaarKyc?.status === "verified") {
+    res.status(400);
+    throw new Error("Your Aadhaar KYC is already verified");
+  }
+
+  let ocrResult;
+  try {
+    ocrResult = await verifyAadhaarByImages(
+      frontFile.buffer,
+      backFile.buffer,
+      frontFile.originalname,
+      backFile.originalname,
+    );
+  } catch (error) {
+    const message = error?.message || "Aadhaar OCR verification failed";
+
+    if (/whitelist|ip address/i.test(message)) {
+      res.status(403);
+      throw new Error(
+        `${message}. Please whitelist your server/public IP in the PlanAPI dashboard.`,
+      );
+    }
+
+    res.status(502);
+    throw new Error(message);
+  }
+
+  // Update user's KYC fields
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  user.aadhaarKyc = {
+    status: "verified",
+    maskedAadhaar: ocrResult.aadhaarNumber || "",
+    name: ocrResult.name || "",
+    dob: ocrResult.dob || "",
+    address: ocrResult.address || "",
+    state: ocrResult.state || "",
+    pincode: ocrResult.pincode || "",
+    verifiedAt: new Date(),
+  };
+
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Aadhaar KYC verified successfully",
+    aadhaarKyc: user.aadhaarKyc,
+  });
+});
+
+export { sendAadhaarOtp, verifyAadhaarOtp, verifyAadhaarKyc };
+

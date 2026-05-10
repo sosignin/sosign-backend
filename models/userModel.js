@@ -74,6 +74,21 @@ const userSchema = mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Aadhaar KYC verification via image OCR
+    aadhaarKyc: {
+      status: {
+        type: String,
+        enum: ["not_verified", "verified"],
+        default: "not_verified",
+      },
+      maskedAadhaar: { type: String, default: "" },
+      name: { type: String, default: "" },
+      dob: { type: String, default: "" },
+      address: { type: String, default: "" },
+      state: { type: String, default: "" },
+      pincode: { type: String, default: "" },
+      verifiedAt: { type: Date, default: null },
+    },
   },
   {
     timestamps: true,

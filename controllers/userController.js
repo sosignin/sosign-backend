@@ -37,6 +37,7 @@ const authUser = asyncHandler(async (req, res) => {
       token: token, // Include token in response
       hasPassword: !!user.password,
       googleId: user.googleId,
+      aadhaarKyc: userWithPetitions.aadhaarKyc || { status: "not_verified" },
     });
   } else {
     res.status(401);
@@ -110,6 +111,7 @@ const registerUser = asyncHandler(async (req, res) => {
       token: token, // Include token in response
       hasPassword: !!user.password,
       googleId: user.googleId,
+      aadhaarKyc: user.aadhaarKyc || { status: "not_verified" },
     });
   } else {
     res.status(400);
@@ -160,6 +162,7 @@ const getUserProfile = asyncHandler(async (req, res) => {
       petitions: userWithPetitions.petitions,
       hasPassword: !!userWithPetitions.password,
       googleId: userWithPetitions.googleId,
+      aadhaarKyc: userWithPetitions.aadhaarKyc || { status: "not_verified" },
     });
   } else {
     res.status(404);
@@ -262,6 +265,7 @@ const authGoogleUser = asyncHandler(async (req, res) => {
       token: token, // Include token in response
       hasPassword: !!user.password,
       googleId: user.googleId,
+      aadhaarKyc: user.aadhaarKyc || { status: "not_verified" },
     });
   } else {
     // User does not exist, register them
@@ -291,6 +295,7 @@ const authGoogleUser = asyncHandler(async (req, res) => {
         token: token, // Include token in response
         hasPassword: !!user.password,
         googleId: user.googleId,
+        aadhaarKyc: user.aadhaarKyc || { status: "not_verified" },
       });
     } else {
       res.status(400);
