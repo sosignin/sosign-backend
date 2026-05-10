@@ -8,6 +8,9 @@
  * Success error codes: 100, 200, 211
  */
 
+import FormData from "form-data";
+import fetch from "node-fetch";
+
 const DEFAULT_OCR_URL = "https://planapi.in/Api/Ekyc/AadhaarOCR";
 
 const getPlanApiConfig = () => {
@@ -42,70 +45,37 @@ const verifyAadhaarByImages = async (
 ) => {
   const config = getPlanApiConfig();
 
-  // Build multipart/form-data body using the built-in FormData (Node 18+)
-  // We fall back to the `form-data` npm package for older runtimes.
-  let FormDataClass;
-  let blobSupported = false;
-  try {
-    // Node 18+ has global FormData & Blob
-    if (typeof globalThis.FormData === "function" && typeof globalThis.Blob === "function") {
-      FormDataClass = globalThis.FormData;
-      blobSupported = true;
-    } else {
-      throw new Error("fallback");
-    }
-  } catch {
-    // Use npm form-data package
-    const mod = await import("form-data");
-    FormDataClass = mod.default || mod;
-  }
-
-  let body;
-  let extraHeaders = {};
-
-  if (blobSupported) {
-    // Native FormData + Blob (Node 18+)
-    body = new FormDataClass();
-    body.append(
-      "FrontImage",
-      new Blob([frontImageBuffer], { type: "image/jpeg" }),
-      frontOriginalName,
-    );
-    body.append(
-      "BackImage",
-      new Blob([backImageBuffer], { type: "image/jpeg" }),
-      backOriginalName,
-    );
-  } else {
-    // npm form-data
-    body = new FormDataClass();
-    body.append("FrontImage", frontImageBuffer, {
-      filename: frontOriginalName,
-      contentType: "image/jpeg",
-    });
-    body.append("BackImage", backImageBuffer, {
-      filename: backOriginalName,
-      contentType: "image/jpeg",
-    });
-    extraHeaders = body.getHeaders ? body.getHeaders() : {};
-  }
+  // Always use the npm `form-data` package for reliable multipart uploads
+  const form = new FormData();
+  form.append("FrontImage", frontImageBuffer, {
+    filename: frontOriginalName,
+    contentType: "image/jpeg",
+  });
+  form.append("BackImage", backImageBuffer, {
+    filename: backOriginalName,
+    contentType: "image/jpeg",
+  });
 
   const headers = {
     TokenID: config.tokenId,
     ApiUserID: config.apiUserId,
     ApiPassword: config.apiPassword,
     Accept: "application/json",
-    ...extraHeaders,
+    ...form.getHeaders(),
   };
+
+  console.log("[AadhaarOCR] Sending request to:", config.ocrUrl);
 
   const response = await fetch(config.ocrUrl, {
     method: "POST",
     headers,
-    body,
+    body: form,
   });
 
   // Parse response
   const rawText = await response.text();
+  console.log("[AadhaarOCR] Response status:", response.status, "body:", rawText.substring(0, 500));
+
   let payload;
   try {
     payload = JSON.parse(rawText);
