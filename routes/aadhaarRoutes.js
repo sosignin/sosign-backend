@@ -4,6 +4,9 @@ import {
   sendAadhaarOtp,
   verifyAadhaarOtp,
   verifyAadhaarKyc,
+  initializeDigilocker,
+  getDigilockerStatus,
+  completeDigilockerKyc,
 } from "../controllers/aadhaarController.js";
 import aadhaarKycUpload from "../middleware/aadhaarKycUpload.js";
 
@@ -20,5 +23,10 @@ router.post(
   ]),
   verifyAadhaarKyc,
 );
+
+// DigiLocker routes
+router.post("/digilocker/initialize", protect, initializeDigilocker);
+router.post("/digilocker/status", protect, getDigilockerStatus);
+router.post("/digilocker/complete", protect, completeDigilockerKyc);
 
 export default router;

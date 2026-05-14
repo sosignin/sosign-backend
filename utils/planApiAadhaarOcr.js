@@ -45,62 +45,76 @@ const verifyAadhaarByImages = async (
   backOriginalName = "back.jpg",
 ) => {
   const config = getPlanApiConfig();
+  const apiMode = process.env.PLANAPI_MODE?.trim() || "1";
 
-  const form = new FormData();
-  
-  // Clean request: Only images in body, credentials in headers
-  form.append("FrontImage", frontImageBuffer, { filename: "front.jpg", contentType: "image/jpeg" });
-  form.append("BackImage", backImageBuffer, { filename: "back.jpg", contentType: "image/jpeg" });
+  // Convert buffers to Base64 strings
+  const frontBase64 = frontImageBuffer.toString("base64");
+  const backBase64 = backImageBuffer.toString("base64");
 
-  const headers = {
+  // PlanAPI often requires x-www-form-urlencoded for Base64 fields
+  const body = new URLSearchParams({
     TokenID: config.tokenId,
     ApiUserID: config.apiUserId,
     ApiPassword: config.apiPassword,
-    ...form.getHeaders(),
+    ApiMode: apiMode,
+    FrontImage: frontBase64,
+    BackImage: backBase64,
+  });
+
+  const headers = {
+    "TokenID": config.tokenId,
+    "ApiUserID": config.apiUserId,
+    "ApiPassword": config.apiPassword,
+    "Content-Type": "application/x-www-form-urlencoded",
+    "Accept": "application/json",
   };
 
-  console.log("[AadhaarOCR] Attempting clean multipart request. Headers only auth.");
+  console.log("[AadhaarOCR] Sending URL-encoded request via fetch to:", config.ocrUrl);
 
   try {
-    const response = await axios.post(config.ocrUrl, form, {
+    const response = await fetch(config.ocrUrl, {
+      method: "POST",
       headers,
-      timeout: 30000, // 30 seconds timeout
+      body: body.toString(),
     });
 
-    const payload = response.data;
+    const raw = await response.text();
+    let payload;
+    try {
+      payload = JSON.parse(raw);
+    } catch (e) {
+      console.error("[AadhaarOCR] Non-JSON response:", raw.substring(0, 500));
+      throw new Error(`Invalid response from API (HTTP ${response.status})`);
+    }
+
     console.log("[AadhaarOCR] Response:", JSON.stringify(payload).substring(0, 500));
 
     // PlanAPI treats error codes 100, 200, 211 as success
     const errorCode = Number(
-      payload?.Errorcode ?? payload?.errorcode ?? payload?.ErrorCode ?? -1,
+      payload?.Errorcode ?? payload?.errorcode ?? payload?.ErrorCode ?? payload?.code ?? -1,
     );
     const isSuccess =
       [100, 200, 211].includes(errorCode) ||
-      String(payload?.Status || "").toLowerCase() === "success";
+      String(payload?.Status || payload?.status || "").toLowerCase() === "success";
 
     if (!isSuccess) {
-      let msg = payload?.Message || payload?.message || `Aadhaar OCR failed (code ${errorCode})`;
+      let msg = payload?.Message || payload?.message || payload?.msg || `Aadhaar OCR failed (code ${errorCode})`;
       throw new Error(msg);
     }
 
-    const data = payload?.data || {};
+    const data = payload?.data || payload?.response || {};
     return {
-      aadhaarNumber: data.AadharNumber || data.AadhaarNumber || "",
-      name: data.Name || "",
-      dob: data.DOB || "",
-      address: data.Address || "",
-      state: data.State || "",
-      pincode: data.Pincode || "",
-      valid: String(data.Valid || "").toLowerCase() === "true",
+      aadhaarNumber: data.AadharNumber || data.AadhaarNumber || data.aadhaar_number || "",
+      name: data.Name || data.name || "",
+      dob: data.DOB || data.dob || "",
+      address: data.Address || data.address || "",
+      state: data.State || data.state || "",
+      pincode: data.Pincode || data.pincode || "",
+      valid: String(data.Valid || data.valid || "").toLowerCase() === "true",
       raw: payload,
     };
   } catch (error) {
-    if (error.response) {
-      console.error("[AadhaarOCR] API Error Response:", error.response.status, error.response.data);
-      const msg = error.response.data?.Message || error.response.data?.message || `API Error ${error.response.status}`;
-      throw new Error(msg);
-    }
-    console.error("[AadhaarOCR] Request Error:", error.message);
+    console.error("[AadhaarOCR] Error:", error.message);
     throw error;
   }
 };

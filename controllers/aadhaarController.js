@@ -13,6 +13,11 @@ import {
   verifyAadhaarOtpWithPlanApi,
 } from "../utils/planApiAadhaar.js";
 import { verifyAadhaarByImages } from "../utils/planApiAadhaarOcr.js";
+import {
+  initializeDigilockerSession,
+  checkDigilockerStatus,
+  downloadDigilockerAadhaar,
+} from "../utils/planApiDigilocker.js";
 import User from "../models/userModel.js";
 
 // @desc    Send Aadhaar OTP for verification
@@ -147,19 +152,25 @@ const verifyAadhaarOtp = asyncHandler(async (req, res) => {
 // @route   POST /api/aadhaar/verify-kyc
 // @access  Private
 const verifyAadhaarKyc = asyncHandler(async (req, res) => {
+  console.log("[KYC] Received request from user:", req.user?._id);
+  const fileKeys = Object.keys(req.files || {});
+  console.log("[KYC] Files keys received:", fileKeys);
+
   try {
     // Multer populates req.files as an object keyed by field name
-    const frontFile = req.files?.FrontImage?.[0];
-    const backFile = req.files?.BackImage?.[0];
+    // Handle both "FrontImage" and "frontImage" (just in case frontend changes)
+    const frontFile = req.files?.FrontImage?.[0] || req.files?.frontImage?.[0];
+    const backFile = req.files?.BackImage?.[0] || req.files?.backImage?.[0];
 
     if (!frontFile || !backFile) {
+      console.warn("[KYC] Missing files. Available keys:", fileKeys);
       res.status(400);
       throw new Error(
-        "Both front and back Aadhaar card images are required",
+        `Both front and back Aadhaar card images are required. Received: ${fileKeys.join(", ") || "none"}`,
       );
     }
 
-    console.log("[KYC] Files received - Front:", frontFile.originalname, frontFile.size, "bytes, Back:", backFile.originalname, backFile.size, "bytes");
+    console.log("[KYC] Files identified - Front:", frontFile.originalname, "Back:", backFile.originalname);
 
     // Check if user is already KYC verified
     const existingUser = await User.findById(req.user._id);
@@ -177,17 +188,19 @@ const verifyAadhaarKyc = asyncHandler(async (req, res) => {
         backFile.originalname,
       );
     } catch (error) {
-      console.error("[KYC] PlanAPI OCR error:", error?.message || error);
+      console.error("[KYC] PlanAPI OCR error detail:", error);
       const message = error?.message || "Aadhaar OCR verification failed";
 
       if (/whitelist|ip address/i.test(message)) {
-        return res.status(403).json({
+        res.status(403);
+        return res.json({
           success: false,
           message: `${message}. Please whitelist your server IP in the PlanAPI dashboard.`,
         });
       }
 
-      return res.status(400).json({
+      res.status(400);
+      return res.json({
         success: false,
         message: message,
       });
@@ -234,5 +247,119 @@ const verifyAadhaarKyc = asyncHandler(async (req, res) => {
   }
 });
 
-export { sendAadhaarOtp, verifyAadhaarOtp, verifyAadhaarKyc };
+// @desc    Step 1: Initialize DigiLocker KYC session
+// @route   POST /api/aadhaar/digilocker/initialize
+// @access  Private
+const initializeDigilocker = asyncHandler(async (req, res) => {
+  try {
+    const { name, email, mobileNumber } = req.user;
+    
+    // We can use a custom redirect URL or let frontend handle it
+    const result = await initializeDigilockerSession({
+      name: name,
+      email: email,
+      mobileNo: mobileNumber,
+      redirectUrl: `${process.env.FRONTEND_URL || "http://localhost:3000"}/kyc-callback`,
+    });
+
+    res.status(200).json({
+      success: true,
+      clientId: result.clientId,
+      url: result.url,
+      expiry: result.expiry,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to initialize DigiLocker session",
+    });
+  }
+});
+
+// @desc    Step 2: Check DigiLocker session status
+// @route   POST /api/aadhaar/digilocker/status
+// @access  Private
+const getDigilockerStatus = asyncHandler(async (req, res) => {
+  const { clientId } = req.body;
+  if (!clientId) {
+    res.status(400);
+    throw new Error("Client ID is required");
+  }
+
+  try {
+    const result = await checkDigilockerStatus(clientId);
+    res.status(200).json({
+      success: true,
+      isCompleted: result.isCompleted,
+      isFailed: result.isFailed,
+      aadhaarLinked: result.aadhaarLinked,
+      status: result.status,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to check DigiLocker status",
+    });
+  }
+});
+
+// @desc    Step 3: Complete KYC using DigiLocker data
+// @route   POST /api/aadhaar/digilocker/complete
+// @access  Private
+const completeDigilockerKyc = asyncHandler(async (req, res) => {
+  const { clientId } = req.body;
+  if (!clientId) {
+    res.status(400);
+    throw new Error("Client ID is required");
+  }
+
+  try {
+    const status = await checkDigilockerStatus(clientId);
+    if (!status.isCompleted || !status.aadhaarLinked) {
+      res.status(400);
+      throw new Error("DigiLocker session is not completed or Aadhaar is not linked");
+    }
+
+    const aadhaarData = await downloadDigilockerAadhaar(clientId);
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      res.status(404);
+      throw new Error("User not found");
+    }
+
+    user.aadhaarKyc = {
+      status: "verified",
+      maskedAadhaar: aadhaarData.maskedAadhaar || "",
+      name: aadhaarData.fullName || "",
+      dob: aadhaarData.dob || "",
+      address: aadhaarData.fullAddress || "",
+      state: aadhaarData.state || "",
+      pincode: aadhaarData.pincode || "",
+      verifiedAt: new Date(),
+    };
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "DigiLocker KYC completed successfully",
+      aadhaarKyc: user.aadhaarKyc,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to complete DigiLocker KYC",
+    });
+  }
+});
+
+export {
+  sendAadhaarOtp,
+  verifyAadhaarOtp,
+  verifyAadhaarKyc,
+  initializeDigilocker,
+  getDigilockerStatus,
+  completeDigilockerKyc,
+};
 
