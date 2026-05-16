@@ -13,6 +13,9 @@ import {
   getWallets,
   toggleUserSuspension,
   getVerifiedUsers,
+  createDummyUser,
+  createDummyPetition,
+  addDummySignatures,
 } from "../controllers/adminController.js";
 import { adminAuth } from "../middleware/adminAuth.js";
 import {
@@ -53,6 +56,25 @@ router.put("/customers/:id/suspend", adminAuth, toggleUserSuspension);
 
 // Get verified users (DigiLocker KYC)
 router.get("/verified-users", adminAuth, getVerifiedUsers);
+
+// Dummy creation routes
+router.post("/dummy/user", adminAuth, createDummyUser);
+router.post("/dummy/petition", adminAuth, createDummyPetition);
+router.post("/dummy/sign", adminAuth, addDummySignatures);
+
+// Admin file upload helper
+import upload from "../middleware/upload.js";
+router.post("/upload", adminAuth, upload.single("image"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "No file uploaded" });
+    }
+    res.status(200).json({ success: true, url: req.file.path });
+  } catch (error) {
+    console.error("Upload error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
 // Get user wallets
 router.get("/wallets", adminAuth, getWallets);

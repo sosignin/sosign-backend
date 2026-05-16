@@ -27,7 +27,7 @@ const userSchema = mongoose.Schema(
     mobileNumber: {
       type: String,
       required: false, // Made optional for Google sign-ups
-      unique: true,
+      // Removed unique constraint to allow dummy accounts with same mobile
       sparse: true, // Allows null values to not violate unique constraint
     },
     password: {

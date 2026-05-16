@@ -398,3 +398,193 @@ export const getVerifiedUsers = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// @desc    Create a dummy user bypassing normal checks
+// @route   POST /api/admin/dummy/user
+// @access  Private/Admin
+export const createDummyUser = async (req, res) => {
+  try {
+    const { name, email, mobileNumber, designation, bio, verifyAadhaar } = req.body;
+
+    if (!name || !email) {
+      return res.status(400).json({ success: false, message: "Name and email are required" });
+    }
+
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      return res.status(400).json({ success: false, message: "A user with this email already exists" });
+    }
+
+    const dummyUser = await User.create({
+      name,
+      email,
+      mobileNumber: mobileNumber || undefined,
+      designation: designation || "Citizen",
+      bio: bio || "Dummy account for petition operations",
+      password: "dummy_password_12345", // dummy password
+      aadhaarKyc: verifyAadhaar ? {
+        status: "verified",
+        maskedAadhaar: "XXXX-XXXX-" + Math.floor(1000 + Math.random() * 9000),
+        name,
+        dob: "01/01/1990",
+        address: "SoSign Hub, India",
+        state: "Delhi",
+        pincode: "110001",
+        verifiedAt: new Date()
+      } : { status: "not_verified" }
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Dummy user created successfully",
+      user: dummyUser
+    });
+  } catch (error) {
+    console.error("Error creating dummy user:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Create a dummy petition
+// @route   POST /api/admin/dummy/petition
+// @access  Private/Admin
+export const createDummyPetition = async (req, res) => {
+  try {
+    const { 
+      title, 
+      userId, 
+      problem, 
+      solution, 
+      category, 
+      decisionMakers, 
+      images, 
+      signingRequirements 
+    } = req.body;
+
+    if (!title || !userId || !problem || !solution) {
+      return res.status(400).json({ success: false, message: "Missing required fields" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "Starter user not found" });
+    }
+
+    const formattedDecisionMakers = (decisionMakers || []).map(dm => ({
+      name: dm.name,
+      organization: dm.organization || "",
+      email: dm.email || "",
+      phone: dm.phone || ""
+    }));
+
+    const petition = await Petition.create({
+      title,
+      country: "India",
+      categories: category ? [category] : ["General"],
+      decisionMakers: formattedDecisionMakers,
+      petitionDetails: {
+        problem,
+        solution,
+        images: images && images.length > 0 ? images : ["https://images.unsplash.com/photo-1541872703-74c5e44368f9?q=80&w=1400"],
+        image: images && images.length > 0 ? images[0] : "https://images.unsplash.com/photo-1541872703-74c5e44368f9?q=80&w=1400"
+      },
+      petitionStarter: {
+        user: user._id,
+        name: user.name,
+        mobile: user.mobileNumber || "9999999999",
+        aadharNumber: user.aadhaarKyc?.maskedAadhaar || "XXXX-XXXX-1234"
+      },
+      signingRequirements: signingRequirements || {
+        constituency: { required: false },
+        aadhar: { required: false }
+      },
+      status: "approved",
+      approved: true
+    });
+
+    // Link petition to starter user
+    user.petitions.push(petition._id);
+    await user.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Dummy petition created and approved successfully",
+      petition
+    });
+  } catch (error) {
+    console.error("Error creating dummy petition:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Add bulk dummy signatures to a petition
+// @route   POST /api/admin/dummy/sign
+// @access  Private/Admin
+export const addDummySignatures = async (req, res) => {
+  try {
+    const { petitionId, count, useSameMobile } = req.body;
+
+    if (!petitionId || !count) {
+      return res.status(400).json({ success: false, message: "Petition ID and count are required" });
+    }
+
+    const petition = await Petition.findById(petitionId);
+    if (!petition) {
+      return res.status(404).json({ success: false, message: "Petition not found" });
+    }
+
+    const firstNames = ["Amit", "Rahul", "Priya", "Sneha", "Rajesh", "Vikram", "Neha", "Anjali", "Sanjay", "Deepak", "Aarav", "Vihaan", "Aditya", "Sai", "Ishaan", "Arjun", "Kabir", "Rohan", "Meera", "Kavya", "Diya", "Riya", "Aanya", "Prisha"];
+    const lastNames = ["Sharma", "Kumar", "Singh", "Patel", "Mehta", "Joshi", "Verma", "Gupta", "Nair", "Iyer", "Reddy", "Rao", "Haldar", "Choudhury", "Das", "Banerjee", "Sen", "Roy", "Shah"];
+
+    const signaturesToAdd = [];
+    const mobileToUse = useSameMobile || "9999990000";
+
+    for (let i = 0; i < count; i++) {
+      const fName = firstNames[Math.floor(Math.random() * firstNames.length)];
+      const lName = lastNames[Math.floor(Math.random() * lastNames.length)];
+      const name = `${fName} ${lName}`;
+      
+      const uniqueSuffix = Math.floor(100000 + Math.random() * 900000);
+      const email = `dummy_${uniqueSuffix}@sosign.com`;
+
+      // Create a dummy user for the signature record
+      const dummyUser = await User.create({
+        name,
+        email,
+        mobileNumber: mobileToUse, // duplicate mobile allowed now!
+        designation: "Supporter",
+        bio: "Citizen supporter",
+        password: "dummy_password_12345",
+        aadhaarKyc: {
+          status: "verified",
+          maskedAadhaar: "XXXX-XXXX-" + Math.floor(1000 + Math.random() * 9000),
+          name,
+          dob: "01/01/1990",
+          address: "SoSign Hub, India",
+          state: "Delhi",
+          pincode: "110001",
+          verifiedAt: new Date()
+        }
+      });
+
+      signaturesToAdd.push({
+        user: dummyUser._id,
+        signedAt: new Date()
+      });
+    }
+
+    // Add to petition
+    petition.signatures.push(...signaturesToAdd);
+    petition.numberOfSignatures = (petition.numberOfSignatures || 0) + count;
+    await petition.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully added ${count} dummy signatures to petition`,
+      newSignatureCount: petition.numberOfSignatures
+    });
+  } catch (error) {
+    console.error("Error adding dummy signatures:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
