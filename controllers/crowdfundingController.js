@@ -71,7 +71,7 @@ const createCampaign = asyncHandler(async (req, res) => {
     legalAccepted: legalAccepted === "true",
     infoVerifiedByUser: infoVerifiedByUser === "true",
     creator: req.user._id,
-    approved: true, // Auto-approve for demo
+    approved: false, // Must be approved by admin before appearing on frontend
   };
 
   const campaign = await Crowdfunding.create(campaignData);

@@ -57,7 +57,7 @@ const crowdfundingSchema = new mongoose.Schema(
 
     // Meta
     creator: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    approved: { type: Boolean, default: true }, // Auto-approve for now
+    approved: { type: Boolean, default: false }, // Set to false so it requires admin approval
     donations: [donationSchema],
     slug: { type: String, unique: true },
   },
