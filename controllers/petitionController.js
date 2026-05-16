@@ -147,53 +147,65 @@ const createPetition = asyncHandler(async (req, res) => {
     parsedPetitionStarter?.aadharNumber || parsedPetitionStarter?.aadhaarNumber;
   const normalizedStarterAadhaar = normalizeAadhaarNumber(starterAadhaarRaw);
 
-  if (!isValidAadhaarNumber(normalizedStarterAadhaar)) {
-    res.status(400);
-    throw new Error("Please provide a valid 12-digit Aadhar number");
-  }
+  const isUserVerified = req.user?.aadhaarKyc?.status === "verified";
 
-  const verificationToken = (
-    aadhaarVerificationToken ||
-    aadharVerificationToken ||
-    ""
-  ).trim();
+  if (!isUserVerified) {
+    if (!isValidAadhaarNumber(normalizedStarterAadhaar)) {
+      res.status(400);
+      throw new Error("Please provide a valid 12-digit Aadhar number");
+    }
 
-  if (!verificationToken) {
-    res.status(400);
-    throw new Error(
-      "Aadhaar OTP verification is required before creating a petition",
-    );
-  }
+    const verificationToken = (
+      aadhaarVerificationToken ||
+      aadharVerificationToken ||
+      ""
+    ).trim();
 
-  let decodedVerificationToken;
-  try {
-    decodedVerificationToken =
-      verifyAadhaarVerificationToken(verificationToken);
-  } catch (error) {
-    res.status(401);
-    throw new Error(
-      "Invalid or expired Aadhaar verification. Please verify again.",
-    );
-  }
+    if (!verificationToken) {
+      res.status(400);
+      throw new Error(
+        "Aadhaar OTP verification is required before creating a petition",
+      );
+    }
 
-  if (decodedVerificationToken.userId !== userId.toString()) {
-    res.status(403);
-    throw new Error("Aadhaar verification token does not belong to this user");
-  }
+    let decodedVerificationToken;
+    try {
+      decodedVerificationToken =
+        verifyAadhaarVerificationToken(verificationToken);
+    } catch (error) {
+      res.status(401);
+      throw new Error(
+        "Invalid or expired Aadhaar verification. Please verify again.",
+      );
+    }
 
-  if (
-    decodedVerificationToken.aadhaarHash !==
-    hashAadhaarNumber(normalizedStarterAadhaar)
-  ) {
-    res.status(400);
-    throw new Error(
-      "Verified Aadhaar does not match the Aadhaar number entered in the form",
-    );
+    if (decodedVerificationToken.userId !== userId.toString()) {
+      res.status(403);
+      throw new Error("Aadhaar verification token does not belong to this user");
+    }
+
+    if (
+      decodedVerificationToken.aadhaarHash !==
+      hashAadhaarNumber(normalizedStarterAadhaar)
+    ) {
+      res.status(400);
+      throw new Error(
+        "Verified Aadhaar does not match the Aadhaar number entered in the form",
+      );
+    }
+  } else {
+    // If user is already verified, we use their masked Aadhaar if they didn't provide a full valid one
+    // This allows them to bypass entering the full 12 digits again
+    if (!isValidAadhaarNumber(normalizedStarterAadhaar)) {
+      parsedPetitionStarter.aadharNumber = req.user.aadhaarKyc.maskedAadhaar || normalizedStarterAadhaar;
+    }
   }
 
   parsedPetitionStarter = {
     ...parsedPetitionStarter,
-    aadharNumber: normalizedStarterAadhaar,
+    aadharNumber: isUserVerified && !isValidAadhaarNumber(normalizedStarterAadhaar) 
+      ? (req.user.aadhaarKyc.maskedAadhaar || normalizedStarterAadhaar)
+      : normalizedStarterAadhaar,
   };
 
   // Handle multiple image uploads to Cloudinary if files are present
@@ -721,50 +733,61 @@ const signPetition = asyncHandler(async (req, res) => {
 
   // Check aadhar requirement
   if (petition.signingRequirements?.aadhar?.required) {
-    if (!aadharNumber) {
-      res.status(400);
-      throw new Error("Aadhar number is required to sign this petition");
-    }
+    const isUserVerified = req.user?.aadhaarKyc?.status === "verified";
+    
+    if (!isUserVerified) {
+      if (!aadharNumber) {
+        res.status(400);
+        throw new Error("Aadhar number is required to sign this petition");
+      }
 
-    const normalizedAadhar = normalizeAadhaarNumber(aadharNumber);
-    if (!isValidAadhaarNumber(normalizedAadhar)) {
-      res.status(400);
-      throw new Error("Please provide a valid 12-digit Aadhar number");
-    }
+      const normalizedAadhar = normalizeAadhaarNumber(aadharNumber);
+      if (!isValidAadhaarNumber(normalizedAadhar)) {
+        res.status(400);
+        throw new Error("Please provide a valid 12-digit Aadhar number");
+      }
 
-    const verificationToken = (
-      req.body.aadhaarVerificationToken ||
-      req.body.aadharVerificationToken ||
-      ""
-    ).trim();
+      const verificationToken = (
+        req.body.aadhaarVerificationToken ||
+        req.body.aadharVerificationToken ||
+        ""
+      ).trim();
 
-    if (!verificationToken) {
-      res.status(400);
-      throw new Error(
-        "Aadhaar OTP verification is required before signing this petition",
-      );
-    }
+      if (!verificationToken) {
+        res.status(400);
+        throw new Error(
+          "Aadhaar OTP verification is required before signing this petition",
+        );
+      }
 
-    let decodedToken;
-    try {
-      decodedToken = verifyAadhaarVerificationToken(verificationToken);
-    } catch (error) {
-      res.status(401);
-      throw new Error(
-        "Invalid or expired Aadhaar verification. Please verify again.",
-      );
-    }
+      let decodedToken;
+      try {
+        decodedToken = verifyAadhaarVerificationToken(verificationToken);
+      } catch (error) {
+        res.status(401);
+        throw new Error(
+          "Invalid or expired Aadhaar verification. Please verify again.",
+        );
+      }
 
-    if (decodedToken.userId !== req.user._id.toString()) {
-      res.status(403);
-      throw new Error("Aadhaar verification token does not belong to this user");
-    }
+      if (decodedToken.userId !== req.user._id.toString()) {
+        res.status(403);
+        throw new Error("Aadhaar verification token does not belong to this user");
+      }
 
-    if (decodedToken.aadhaarHash !== hashAadhaarNumber(normalizedAadhar)) {
-      res.status(400);
-      throw new Error(
-        "Verified Aadhaar does not match the Aadhaar number entered",
-      );
+      if (decodedToken.aadhaarHash !== hashAadhaarNumber(normalizedAadhar)) {
+        res.status(400);
+        throw new Error(
+          "Verified Aadhaar does not match the Aadhaar number entered",
+        );
+      }
+    } else {
+      // For verified users, if they didn't provide a full Aadhar, use the masked one from profile
+      const normalizedAadhar = normalizeAadhaarNumber(aadharNumber);
+      if (!isValidAadhaarNumber(normalizedAadhar)) {
+        // Use masked aadhaar for the signature record
+        req.body.aadharNumber = req.user.aadhaarKyc.maskedAadhaar;
+      }
     }
   }
 

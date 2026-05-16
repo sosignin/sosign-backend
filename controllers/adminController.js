@@ -379,4 +379,22 @@ export const getWallets = async (req, res) => {
     });
   }
 };
+// @desc    Get all users who have verified their Aadhaar using DigiLocker
+// @route   GET /api/admin/verified-users
+// @access  Private/Admin
+export const getVerifiedUsers = async (req, res) => {
+  try {
+    const users = await User.find(
+      { "aadhaarKyc.status": "verified" },
+      "name email aadhaarKyc mobileNumber createdAt"
+    ).sort({ "aadhaarKyc.verifiedAt": -1 });
 
+    res.status(200).json({
+      success: true,
+      users,
+    });
+  } catch (error) {
+    console.error("Error fetching verified users:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
