@@ -38,6 +38,8 @@ const authUser = asyncHandler(async (req, res) => {
       hasPassword: !!user.password,
       googleId: user.googleId,
       aadhaarKyc: userWithPetitions.aadhaarKyc || { status: "not_verified" },
+      panKyc: userWithPetitions.panKyc || { status: "not_verified" },
+      voterKyc: userWithPetitions.voterKyc || { status: "not_verified" },
     });
   } else {
     res.status(401);
@@ -112,6 +114,8 @@ const registerUser = asyncHandler(async (req, res) => {
       hasPassword: !!user.password,
       googleId: user.googleId,
       aadhaarKyc: user.aadhaarKyc || { status: "not_verified" },
+      panKyc: user.panKyc || { status: "not_verified" },
+      voterKyc: user.voterKyc || { status: "not_verified" },
     });
   } else {
     res.status(400);
@@ -163,6 +167,8 @@ const getUserProfile = asyncHandler(async (req, res) => {
       hasPassword: !!userWithPetitions.password,
       googleId: userWithPetitions.googleId,
       aadhaarKyc: userWithPetitions.aadhaarKyc || { status: "not_verified" },
+      panKyc: userWithPetitions.panKyc || { status: "not_verified" },
+      voterKyc: userWithPetitions.voterKyc || { status: "not_verified" },
     });
   } else {
     res.status(404);
@@ -224,7 +230,9 @@ const updateUserProfile = asyncHandler(async (req, res) => {
     mobileNumber: updatedUser.mobileNumber,
     bio: updatedUser.bio || "",
     profilePicture: updatedUser.profilePicture || "",
-    socialLinks: updatedUser.socialLinks || {},
+    aadhaarKyc: updatedUser.aadhaarKyc || { status: "not_verified" },
+    panKyc: updatedUser.panKyc || { status: "not_verified" },
+    voterKyc: updatedUser.voterKyc || { status: "not_verified" },
     message: "Profile updated successfully",
   });
 });
@@ -266,6 +274,8 @@ const authGoogleUser = asyncHandler(async (req, res) => {
       hasPassword: !!user.password,
       googleId: user.googleId,
       aadhaarKyc: user.aadhaarKyc || { status: "not_verified" },
+      panKyc: user.panKyc || { status: "not_verified" },
+      voterKyc: user.voterKyc || { status: "not_verified" },
     });
   } else {
     // User does not exist, register them
@@ -296,6 +306,8 @@ const authGoogleUser = asyncHandler(async (req, res) => {
         hasPassword: !!user.password,
         googleId: user.googleId,
         aadhaarKyc: user.aadhaarKyc || { status: "not_verified" },
+        panKyc: user.panKyc || { status: "not_verified" },
+        voterKyc: user.voterKyc || { status: "not_verified" },
       });
     } else {
       res.status(400);

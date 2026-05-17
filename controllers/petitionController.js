@@ -15,6 +15,11 @@ import {
   hashPanNumber,
   verifyPanVerificationToken,
 } from "../utils/panVerificationUtils.js";
+import {
+  isValidVoterNumber,
+  hashVoterNumber,
+  verifyVoterVerificationToken,
+} from "../utils/voterVerificationUtils.js";
 
 // @desc    Create a new petition
 // @route   POST /api/petitions
@@ -32,6 +37,7 @@ const createPetition = asyncHandler(async (req, res) => {
     aadhaarVerificationToken,
     aadharVerificationToken,
     panVerificationToken,
+    voterVerificationToken,
   } = req.body;
 
   // Parse decisionMakers if it's a string (from FormData)
@@ -148,15 +154,18 @@ const createPetition = asyncHandler(async (req, res) => {
   console.log("Derived userId for petition creation:", userId); // Debugging line
   console.log("parsedPetitionStarter before creation:", parsedPetitionStarter); // Debugging line
 
-  // Enforce identity verification for petition creator (BOTH Aadhaar and PAN Card).
+  // Enforce identity verification for petition creator (Aadhaar, PAN Card, and Voter ID).
   const isAadhaarVerified = req.user?.aadhaarKyc?.status === "verified";
   const isPanVerified = req.user?.panKyc?.status === "verified";
+  const isVoterVerified = req.user?.voterKyc?.status === "verified";
 
   const starterAadhaarRaw =
     parsedPetitionStarter?.aadharNumber || parsedPetitionStarter?.aadhaarNumber;
   const normalizedStarterAadhaar = normalizeAadhaarNumber(starterAadhaarRaw);
   const starterPanRaw = parsedPetitionStarter?.panNumber;
   const normalizedStarterPan = starterPanRaw ? starterPanRaw.trim().toUpperCase() : "";
+  const starterVoterRaw = parsedPetitionStarter?.voterNumber;
+  const normalizedStarterVoter = starterVoterRaw ? starterVoterRaw.trim().toUpperCase() : "";
 
   // 1. Aadhaar verification check
   if (!isAadhaarVerified) {
@@ -256,6 +265,53 @@ const createPetition = asyncHandler(async (req, res) => {
     }
   }
 
+  // 3. Voter ID verification check
+  if (!isVoterVerified) {
+    const voterToken = (voterVerificationToken || "").trim();
+
+    if (!voterToken) {
+      res.status(400);
+      throw new Error(
+        "Voter ID verification is required before creating a petition"
+      );
+    }
+
+    if (!isValidVoterNumber(normalizedStarterVoter)) {
+      res.status(400);
+      throw new Error("Please provide a valid 10-18 character Voter ID");
+    }
+
+    let decodedVoterToken;
+    try {
+      decodedVoterToken = verifyVoterVerificationToken(voterToken);
+    } catch (error) {
+      res.status(401);
+      throw new Error(
+        "Invalid or expired Voter ID verification. Please verify again."
+      );
+    }
+
+    if (decodedVoterToken.userId !== userId.toString()) {
+      res.status(403);
+      throw new Error("Voter ID verification token does not belong to this user");
+    }
+
+    if (
+      decodedVoterToken.voterHash !==
+      hashVoterNumber(normalizedStarterVoter)
+    ) {
+      res.status(400);
+      throw new Error(
+        "Verified Voter ID does not match the Voter ID entered in the form"
+      );
+    }
+  } else {
+    // If user is already verified via Voter ID
+    if (!isValidVoterNumber(normalizedStarterVoter)) {
+      parsedPetitionStarter.voterNumber = req.user.voterKyc.voterId || normalizedStarterVoter;
+    }
+  }
+
   parsedPetitionStarter = {
     ...parsedPetitionStarter,
     aadharNumber: isAadhaarVerified && !isValidAadhaarNumber(normalizedStarterAadhaar) 
@@ -264,6 +320,9 @@ const createPetition = asyncHandler(async (req, res) => {
     panNumber: isPanVerified && !isValidPanNumber(normalizedStarterPan)
       ? (req.user.panKyc.panNumber || normalizedStarterPan)
       : normalizedStarterPan,
+    voterNumber: isVoterVerified && !isValidVoterNumber(normalizedStarterVoter)
+      ? (req.user.voterKyc.voterId || normalizedStarterVoter)
+      : normalizedStarterVoter,
   };
 
   // Handle multiple image uploads to Cloudinary if files are present

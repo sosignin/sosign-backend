@@ -102,6 +102,23 @@ const userSchema = mongoose.Schema(
       panType: { type: String, default: "" },
       verifiedAt: { type: Date, default: null },
     },
+    // Voter KYC verification via PlanAPI direct API
+    voterKyc: {
+      status: {
+        type: String,
+        enum: ["not_verified", "verified"],
+        default: "not_verified",
+      },
+      voterId: { type: String, default: "" },
+      registeredName: { type: String, default: "" },
+      dob: { type: String, default: "" },
+      gender: { type: String, default: "" },
+      relation: { type: String, default: "" },
+      relationType: { type: String, default: "" },
+      area: { type: String, default: "" },
+      district: { type: String, default: "" },
+      verifiedAt: { type: Date, default: null },
+    },
   },
   {
     timestamps: true,
