@@ -163,4 +163,53 @@ router.delete("/categories/:id", adminAuth, async (req, res) => {
   }
 });
 
+// Admin progress update management routes
+router.get("/progress-updates", adminAuth, async (req, res) => {
+  try {
+    const ProgressUpdate = await import("../models/progressUpdateModel.js").then(m => m.default);
+    
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const totalUpdates = await ProgressUpdate.countDocuments();
+    
+    const updates = await ProgressUpdate.find()
+      .populate("author", "name email profilePicture")
+      .populate("petition", "title")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      updates,
+      currentPage: page,
+      totalPages: Math.ceil(totalUpdates / limit),
+      totalUpdates,
+      limit
+    });
+  } catch (error) {
+    console.error("Error fetching admin progress updates:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.delete("/progress-updates/:id", adminAuth, async (req, res) => {
+  try {
+    const ProgressUpdate = await import("../models/progressUpdateModel.js").then(m => m.default);
+    const update = await ProgressUpdate.findByIdAndDelete(req.params.id);
+    
+    if (!update) {
+      return res.status(404).json({ success: false, message: "Progress update not found" });
+    }
+    
+    res.status(200).json({ success: true, message: "Progress update deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting progress update:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 export default router;
