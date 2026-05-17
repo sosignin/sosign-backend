@@ -32,6 +32,7 @@ import crowdfundingRoutes from "./routes/crowdfundingRoutes.js";
 import withdrawalRoutes from "./routes/withdrawalRoutes.js";
 import panRoutes from "./routes/panRoutes.js";
 import voterRoutes from "./routes/voterRoutes.js";
+import progressUpdateRoutes from "./routes/progressUpdateRoutes.js";
 
 
 // Middleware
@@ -171,6 +172,7 @@ app.use("/api/crowdfunding", crowdfundingRoutes);
 app.use("/api/withdrawals", withdrawalRoutes);
 app.use("/api/pan", panRoutes);
 app.use("/api/voter", voterRoutes);
+app.use("/api/progress-updates", progressUpdateRoutes);
 
 
 // Root endpoint
