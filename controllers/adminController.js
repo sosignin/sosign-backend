@@ -385,9 +385,15 @@ export const getWallets = async (req, res) => {
 export const getVerifiedUsers = async (req, res) => {
   try {
     const users = await User.find(
-      { "aadhaarKyc.status": "verified" },
-      "name email aadhaarKyc mobileNumber createdAt"
-    ).sort({ "aadhaarKyc.verifiedAt": -1 });
+      {
+        $or: [
+          { "aadhaarKyc.status": "verified" },
+          { "panKyc.status": "verified" },
+          { "voterKyc.status": "verified" }
+        ]
+      },
+      "name email aadhaarKyc panKyc voterKyc mobileNumber createdAt"
+    ).sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
