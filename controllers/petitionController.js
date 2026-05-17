@@ -10,6 +10,11 @@ import {
   hashAadhaarNumber,
   verifyAadhaarVerificationToken,
 } from "../utils/aadhaarVerificationUtils.js";
+import {
+  isValidPanNumber,
+  hashPanNumber,
+  verifyPanVerificationToken,
+} from "../utils/panVerificationUtils.js";
 
 // @desc    Create a new petition
 // @route   POST /api/petitions
@@ -26,6 +31,7 @@ const createPetition = asyncHandler(async (req, res) => {
     signingRequirements,
     aadhaarVerificationToken,
     aadharVerificationToken,
+    panVerificationToken,
   } = req.body;
 
   // Parse decisionMakers if it's a string (from FormData)
@@ -142,40 +148,43 @@ const createPetition = asyncHandler(async (req, res) => {
   console.log("Derived userId for petition creation:", userId); // Debugging line
   console.log("parsedPetitionStarter before creation:", parsedPetitionStarter); // Debugging line
 
-  // Enforce Aadhaar OTP verification for petition creator.
+  // Enforce identity verification for petition creator (BOTH Aadhaar and PAN Card).
+  const isAadhaarVerified = req.user?.aadhaarKyc?.status === "verified";
+  const isPanVerified = req.user?.panKyc?.status === "verified";
+
   const starterAadhaarRaw =
     parsedPetitionStarter?.aadharNumber || parsedPetitionStarter?.aadhaarNumber;
   const normalizedStarterAadhaar = normalizeAadhaarNumber(starterAadhaarRaw);
+  const starterPanRaw = parsedPetitionStarter?.panNumber;
+  const normalizedStarterPan = starterPanRaw ? starterPanRaw.trim().toUpperCase() : "";
 
-  const isUserVerified = req.user?.aadhaarKyc?.status === "verified";
-
-  if (!isUserVerified) {
-    if (!isValidAadhaarNumber(normalizedStarterAadhaar)) {
-      res.status(400);
-      throw new Error("Please provide a valid 12-digit Aadhar number");
-    }
-
-    const verificationToken = (
+  // 1. Aadhaar verification check
+  if (!isAadhaarVerified) {
+    const aadhaarToken = (
       aadhaarVerificationToken ||
       aadharVerificationToken ||
       ""
     ).trim();
 
-    if (!verificationToken) {
+    if (!aadhaarToken) {
       res.status(400);
       throw new Error(
-        "Aadhaar OTP verification is required before creating a petition",
+        "Aadhaar OTP verification is required before creating a petition"
       );
+    }
+
+    if (!isValidAadhaarNumber(normalizedStarterAadhaar)) {
+      res.status(400);
+      throw new Error("Please provide a valid 12-digit Aadhar number");
     }
 
     let decodedVerificationToken;
     try {
-      decodedVerificationToken =
-        verifyAadhaarVerificationToken(verificationToken);
+      decodedVerificationToken = verifyAadhaarVerificationToken(aadhaarToken);
     } catch (error) {
       res.status(401);
       throw new Error(
-        "Invalid or expired Aadhaar verification. Please verify again.",
+        "Invalid or expired Aadhaar verification. Please verify again."
       );
     }
 
@@ -190,22 +199,71 @@ const createPetition = asyncHandler(async (req, res) => {
     ) {
       res.status(400);
       throw new Error(
-        "Verified Aadhaar does not match the Aadhaar number entered in the form",
+        "Verified Aadhaar does not match the Aadhaar number entered in the form"
       );
     }
   } else {
-    // If user is already verified, we use their masked Aadhaar if they didn't provide a full valid one
-    // This allows them to bypass entering the full 12 digits again
+    // If user is already verified via Aadhaar
     if (!isValidAadhaarNumber(normalizedStarterAadhaar)) {
       parsedPetitionStarter.aadharNumber = req.user.aadhaarKyc.maskedAadhaar || normalizedStarterAadhaar;
     }
   }
 
+  // 2. PAN verification check
+  if (!isPanVerified) {
+    const panToken = (panVerificationToken || "").trim();
+
+    if (!panToken) {
+      res.status(400);
+      throw new Error(
+        "PAN Card verification is required before creating a petition"
+      );
+    }
+
+    if (!isValidPanNumber(normalizedStarterPan)) {
+      res.status(400);
+      throw new Error("Please provide a valid 10-digit PAN card number");
+    }
+
+    let decodedPanToken;
+    try {
+      decodedPanToken = verifyPanVerificationToken(panToken);
+    } catch (error) {
+      res.status(401);
+      throw new Error(
+        "Invalid or expired PAN verification. Please verify again."
+      );
+    }
+
+    if (decodedPanToken.userId !== userId.toString()) {
+      res.status(403);
+      throw new Error("PAN verification token does not belong to this user");
+    }
+
+    if (
+      decodedPanToken.panHash !==
+      hashPanNumber(normalizedStarterPan)
+    ) {
+      res.status(400);
+      throw new Error(
+        "Verified PAN does not match the PAN number entered in the form"
+      );
+    }
+  } else {
+    // If user is already verified via PAN
+    if (!isValidPanNumber(normalizedStarterPan)) {
+      parsedPetitionStarter.panNumber = req.user.panKyc.panNumber || normalizedStarterPan;
+    }
+  }
+
   parsedPetitionStarter = {
     ...parsedPetitionStarter,
-    aadharNumber: isUserVerified && !isValidAadhaarNumber(normalizedStarterAadhaar) 
+    aadharNumber: isAadhaarVerified && !isValidAadhaarNumber(normalizedStarterAadhaar) 
       ? (req.user.aadhaarKyc.maskedAadhaar || normalizedStarterAadhaar)
       : normalizedStarterAadhaar,
+    panNumber: isPanVerified && !isValidPanNumber(normalizedStarterPan)
+      ? (req.user.panKyc.panNumber || normalizedStarterPan)
+      : normalizedStarterPan,
   };
 
   // Handle multiple image uploads to Cloudinary if files are present

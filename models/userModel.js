@@ -89,6 +89,19 @@ const userSchema = mongoose.Schema(
       pincode: { type: String, default: "" },
       verifiedAt: { type: Date, default: null },
     },
+    // PAN KYC verification via PlanAPI direct API
+    panKyc: {
+      status: {
+        type: String,
+        enum: ["not_verified", "verified"],
+        default: "not_verified",
+      },
+      panNumber: { type: String, default: "" },
+      registeredName: { type: String, default: "" },
+      fatherName: { type: String, default: "" },
+      panType: { type: String, default: "" },
+      verifiedAt: { type: Date, default: null },
+    },
   },
   {
     timestamps: true,

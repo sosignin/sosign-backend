@@ -57,7 +57,7 @@ const petitionSchema = mongoose.Schema(
       mobile: { type: String, required: true },
       location: { type: String },
       comment: { type: String },
-      aadharNumber: { type: String, required: true },
+      aadharNumber: { type: String, required: false },
       panNumber: { type: String },
       voterNumber: { type: String },
       pincode: { type: String },

@@ -30,6 +30,7 @@ import subAdminRoutes from "./routes/subAdminRoutes.js";
 import otpRoutes from "./routes/otpRoutes.js";
 import crowdfundingRoutes from "./routes/crowdfundingRoutes.js";
 import withdrawalRoutes from "./routes/withdrawalRoutes.js";
+import panRoutes from "./routes/panRoutes.js";
 
 
 // Middleware
@@ -167,6 +168,7 @@ app.use("/api/subadmin", subAdminRoutes);
 app.use("/api/otp", otpRoutes);
 app.use("/api/crowdfunding", crowdfundingRoutes);
 app.use("/api/withdrawals", withdrawalRoutes);
+app.use("/api/pan", panRoutes);
 
 
 // Root endpoint
