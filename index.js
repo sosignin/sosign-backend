@@ -103,7 +103,8 @@ const allowedOrigins =
       "http://127.0.0.1:3001",
       "https://sosign.vercel.app",
       "https://sosign-admin.vercel.app",
-     "https://sosign-admin-one.vercel.app/login",
+      "https://sosign-admin-one.vercel.app",
+      "https://sosign-frontend.vercel.app",
     ];
 
 app.use(
