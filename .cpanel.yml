@@ -3,3 +3,7 @@ deployment:
   tasks:
     - cd /home/beegmeai/repositories/sosign-backend
     - source /home/beegmeai/nodevenv/repositories/sosign-backend/22/bin/activate && npm install --production
+    - mkdir -p tmp
+    - touch tmp/restart.txt
+    - pkill -f node || true
+
