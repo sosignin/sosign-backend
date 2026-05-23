@@ -59,14 +59,77 @@ const app = express();
 // Trust proxy for rate limiting behind reverse proxies
 app.set("trust proxy", 1);
 
-// Security middleware
+// CORS configuration - MUST be before helmet and other middleware
+const allowedOrigins =
+  process.env.ALLOWED_ORIGINS ?
+    process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
+  : [
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "http://127.0.0.1:3000",
+      "http://127.0.0.1:3001",
+      "https://sosign.vercel.app",
+      "https://sosign-admin.vercel.app",
+      "https://sosign-admin-one.vercel.app",
+      "https://sosign-frontend.vercel.app",
+    ];
+
+console.log("Allowed CORS origins:", allowedOrigins);
+
+// Manual CORS headers for ALL requests (ensures headers are always set)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+  }
+
+  // Handle preflight OPTIONS requests immediately
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+
+  next();
+});
+
+// Also use cors middleware for additional handling
 app.use(
-  helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" },
+  cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+
+      // In development, allow all localhost origins
+      if (
+        process.env.NODE_ENV !== "production" &&
+        origin.includes("localhost")
+      ) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        console.log("Blocked by CORS:", origin);
+        callback(null, false);
+      }
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
   }),
 );
 
-// Compression middleware
+// Security middleware (after CORS so it doesn't interfere with CORS headers)
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginOpenerPolicy: false, // Disable to prevent CORS conflicts
+  }),
+);
+
 // Compression middleware (level 6 offers good balance size/cpu)
 app.use(
   compression({
@@ -92,48 +155,6 @@ const limiter = rateLimit({
 });
 app.use("/api", limiter);
 
-// CORS configuration
-const allowedOrigins =
-  process.env.ALLOWED_ORIGINS ?
-    process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
-  : [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "http://127.0.0.1:3000",
-      "http://127.0.0.1:3001",
-      "https://sosign.vercel.app",
-      "https://sosign-admin.vercel.app",
-      "https://sosign-admin-one.vercel.app",
-      "https://sosign-frontend.vercel.app",
-    ];
-
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
-
-      // In development, allow all localhost origins
-      if (
-        process.env.NODE_ENV !== "production" &&
-        origin.includes("localhost")
-      ) {
-        return callback(null, true);
-      }
-
-      if (allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
-      } else {
-        console.log("Blocked by CORS:", origin);
-        // Return false instead of throwing to avoid 500 errors
-        callback(null, false);
-      }
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-  }),
-);
 
 // Body parsing middleware
 app.use(express.json({ limit: "10mb" }));
