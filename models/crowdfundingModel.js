@@ -23,9 +23,21 @@ const crowdfundingSchema = new mongoose.Schema(
     
     // Identity & Verification
     beneficiaryName: { type: String, required: true },
-    beneficiaryAadhaar: { type: String }, // Cloudinary URL
-    beneficiaryPan: { type: String }, // Cloudinary URL
-    organizerAadhaarPan: { type: String }, // Cloudinary URL
+    beneficiaryAadhaar: { type: String }, // Legacy Cloudinary URL
+    beneficiaryPan: { type: String }, // Legacy Cloudinary URL
+    organizerAadhaarPan: { type: String }, // Legacy Cloudinary URL
+    identityVerification: {
+      aadhaar: {
+        status: { type: String, enum: ["not_verified", "verified"], default: "not_verified" },
+        maskedAadhaar: { type: String, default: "" },
+        verifiedAt: { type: Date, default: null },
+      },
+      pan: {
+        status: { type: String, enum: ["not_verified", "verified"], default: "not_verified" },
+        panNumber: { type: String, default: "" },
+        verifiedAt: { type: Date, default: null },
+      },
+    },
     organizerPhone: { type: String, required: true },
     isPhoneVerified: { type: Boolean, default: false },
 

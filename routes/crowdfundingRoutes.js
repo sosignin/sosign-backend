@@ -17,9 +17,6 @@ const router = express.Router();
 
 const uploadFields = crowdfundingUpload.fields([
   { name: "image", maxCount: 1 },
-  { name: "beneficiaryAadhaar", maxCount: 1 },
-  { name: "beneficiaryPan", maxCount: 1 },
-  { name: "organizerAadhaarPan", maxCount: 1 },
   { name: "reports", maxCount: 5 },
   { name: "cancelledCheque", maxCount: 1 },
 ]);

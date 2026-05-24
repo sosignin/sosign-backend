@@ -1,6 +1,18 @@
 import Crowdfunding from "../models/crowdfundingModel.js";
 import Withdrawal from "../models/withdrawalModel.js";
 import asyncHandler from "express-async-handler";
+import {
+  normalizeAadhaarNumber,
+  isValidAadhaarNumber,
+  maskAadhaarNumber,
+  hashAadhaarNumber,
+  verifyAadhaarVerificationToken,
+} from "../utils/aadhaarVerificationUtils.js";
+import {
+  isValidPanNumber,
+  hashPanNumber,
+  verifyPanVerificationToken,
+} from "../utils/panVerificationUtils.js";
 
 // @desc    Create a new crowdfunding campaign
 // @route   POST /api/crowdfunding
@@ -25,7 +37,86 @@ const createCampaign = asyncHandler(async (req, res) => {
     suggestedAmounts,
     legalAccepted,
     infoVerifiedByUser,
+    aadharNumber,
+    aadhaarNumber,
+    panNumber,
+    aadhaarVerificationToken,
+    aadharVerificationToken,
+    panVerificationToken,
   } = req.body;
+
+  const isAadhaarAlreadyVerified = req.user?.aadhaarKyc?.status === "verified";
+  const isPanAlreadyVerified = req.user?.panKyc?.status === "verified";
+  const normalizedAadhaar = normalizeAadhaarNumber(aadhaarNumber || aadharNumber || "");
+  const normalizedPan = String(panNumber || "").trim().toUpperCase();
+  let campaignAadhaar = req.user?.aadhaarKyc?.maskedAadhaar || "";
+  let campaignPan = req.user?.panKyc?.panNumber || "";
+
+  if (!isAadhaarAlreadyVerified) {
+    if (!isValidAadhaarNumber(normalizedAadhaar)) {
+      res.status(400);
+      throw new Error("Please complete Aadhaar verification before creating a crowdfunding campaign");
+    }
+
+    const aadhaarToken = (aadhaarVerificationToken || aadharVerificationToken || "").trim();
+    if (!aadhaarToken) {
+      res.status(400);
+      throw new Error("Aadhaar OTP verification is required before creating a crowdfunding campaign");
+    }
+
+    let decodedAadhaarToken;
+    try {
+      decodedAadhaarToken = verifyAadhaarVerificationToken(aadhaarToken);
+    } catch (error) {
+      res.status(401);
+      throw new Error("Invalid or expired Aadhaar verification. Please verify again.");
+    }
+
+    if (decodedAadhaarToken.userId !== req.user._id.toString()) {
+      res.status(403);
+      throw new Error("Aadhaar verification token does not belong to this user");
+    }
+
+    if (decodedAadhaarToken.aadhaarHash !== hashAadhaarNumber(normalizedAadhaar)) {
+      res.status(400);
+      throw new Error("Verified Aadhaar does not match the Aadhaar number entered in the form");
+    }
+
+    campaignAadhaar = maskAadhaarNumber(normalizedAadhaar);
+  }
+
+  if (!isPanAlreadyVerified) {
+    if (!isValidPanNumber(normalizedPan)) {
+      res.status(400);
+      throw new Error("Please provide a valid 10-digit PAN card number");
+    }
+
+    const panToken = (panVerificationToken || "").trim();
+    if (!panToken) {
+      res.status(400);
+      throw new Error("PAN Card verification is required before creating a crowdfunding campaign");
+    }
+
+    let decodedPanToken;
+    try {
+      decodedPanToken = verifyPanVerificationToken(panToken);
+    } catch (error) {
+      res.status(401);
+      throw new Error("Invalid or expired PAN verification. Please verify again.");
+    }
+
+    if (decodedPanToken.userId !== req.user._id.toString()) {
+      res.status(403);
+      throw new Error("PAN verification token does not belong to this user");
+    }
+
+    if (decodedPanToken.panHash !== hashPanNumber(normalizedPan)) {
+      res.status(400);
+      throw new Error("Verified PAN does not match the PAN number entered in the form");
+    }
+
+    campaignPan = normalizedPan;
+  }
 
   // Extract file URLs from req.files
   const files = req.files || {};
@@ -49,9 +140,18 @@ const createCampaign = asyncHandler(async (req, res) => {
     organizerPhone,
     isPhoneVerified: true, // Dummy verification as requested
     image: getFilePath("image"),
-    beneficiaryAadhaar: getFilePath("beneficiaryAadhaar"),
-    beneficiaryPan: getFilePath("beneficiaryPan"),
-    organizerAadhaarPan: getFilePath("organizerAadhaarPan"),
+    identityVerification: {
+      aadhaar: {
+        status: "verified",
+        maskedAadhaar: campaignAadhaar,
+        verifiedAt: req.user?.aadhaarKyc?.verifiedAt || new Date(),
+      },
+      pan: {
+        status: "verified",
+        panNumber: campaignPan,
+        verifiedAt: req.user?.panKyc?.verifiedAt || new Date(),
+      },
+    },
     medicalDetails: {
       hospitalName,
       doctorName,
@@ -225,4 +325,3 @@ export {
   adminUpdateCampaignStatus,
   getCrowdfundingStats
 };
-
