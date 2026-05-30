@@ -7,7 +7,7 @@ import Petition from "../models/petitionModel.js";
 // @access  Private (Creator or Admin)
 export const createProgressUpdate = asyncHandler(async (req, res) => {
   const { petitionId } = req.params;
-  const { title, content, updateType, videoUrl, milestoneLabel, milestoneStatus, progressPercentage } = req.body;
+  const { title, content, updateType, videoUrl, milestoneLabel, milestoneStatus } = req.body;
 
   const petition = await Petition.findById(petitionId);
 
@@ -60,17 +60,10 @@ export const createProgressUpdate = asyncHandler(async (req, res) => {
     documents,
     videoUrl,
     milestone,
-    progressPercentage: progressPercentage !== undefined ? Number(progressPercentage) : undefined,
     isApproved: true, // Assuming auto-published
   });
 
   const createdUpdate = await update.save();
-
-  // Optionally update petition progress percentage if provided
-  if (progressPercentage !== undefined) {
-    petition.progressPercentage = Number(progressPercentage);
-    await petition.save();
-  }
 
   // Populate author details for the response
   await createdUpdate.populate("author", "name profilePicture role");
@@ -147,12 +140,12 @@ export const reactToUpdate = asyncHandler(async (req, res) => {
   res.json(update.reactions);
 });
 
-// @desc    Update petition progress percentage
+// @desc    Update petition target signatures for progress display
 // @route   PUT /api/progress-updates/:petitionId/progress
 // @access  Private (Creator or Admin)
 export const updateProgressPercentage = asyncHandler(async (req, res) => {
   const { petitionId } = req.params;
-  const { progressPercentage } = req.body;
+  const { targetSignatures } = req.body;
 
   const petition = await Petition.findById(petitionId);
 
@@ -169,13 +162,23 @@ export const updateProgressPercentage = asyncHandler(async (req, res) => {
     throw new Error("Not authorized to update petition progress");
   }
 
-  if (progressPercentage === undefined || progressPercentage < 0 || progressPercentage > 100) {
+  const nextTargetSignatures = Number(targetSignatures);
+
+  if (!Number.isInteger(nextTargetSignatures) || nextTargetSignatures < 1) {
     res.status(400);
-    throw new Error("Valid progress percentage (0-100) is required");
+    throw new Error("Valid target signatures count is required");
   }
 
-  petition.progressPercentage = progressPercentage;
+  petition.targetSignatures = nextTargetSignatures;
+  petition.progressPercentage = Math.min(
+    Math.floor(((petition.numberOfSignatures || 0) / nextTargetSignatures) * 100),
+    100
+  );
   await petition.save();
 
-  res.json({ progressPercentage: petition.progressPercentage });
+  res.json({
+    targetSignatures: petition.targetSignatures,
+    numberOfSignatures: petition.numberOfSignatures,
+    progressPercentage: petition.progressPercentage,
+  });
 });

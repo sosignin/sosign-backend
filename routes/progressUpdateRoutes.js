@@ -24,7 +24,7 @@ router
     createProgressUpdate
   );
 
-// Route to update overall progress percentage of a petition
+// Route to update target signatures used for progress display
 router.route("/:petitionId/progress").put(protect, updateProgressPercentage);
 
 // Routes for a specific progress update

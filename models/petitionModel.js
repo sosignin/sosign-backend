@@ -68,6 +68,11 @@ const petitionSchema = mongoose.Schema(
       type: Number,
       default: 0,
     },
+    targetSignatures: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     signatures: [
       {
         user: {
@@ -122,7 +127,7 @@ const petitionSchema = mongoose.Schema(
         required: { type: Boolean, default: false },  // Is aadhar number mandatory to sign?
       },
     },
-    // Overall campaign progress percentage
+    // Legacy overall campaign progress percentage
     progressPercentage: {
       type: Number,
       default: 0,

@@ -949,11 +949,19 @@ const signPetition = asyncHandler(async (req, res) => {
     signedAt: new Date(),
   });
   petition.numberOfSignatures += 1;
+  if (petition.targetSignatures > 0) {
+    petition.progressPercentage = Math.min(
+      Math.floor((petition.numberOfSignatures / petition.targetSignatures) * 100),
+      100
+    );
+  }
   await petition.save();
 
   res.status(200).json({
     message: "Petition signed successfully",
     numberOfSignatures: petition.numberOfSignatures,
+    targetSignatures: petition.targetSignatures,
+    progressPercentage: petition.progressPercentage,
   });
 });
 
