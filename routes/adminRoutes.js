@@ -16,6 +16,7 @@ import {
   createDummyUser,
   createDummyPetition,
   addDummySignatures,
+  resetUserKyc,
 } from "../controllers/adminController.js";
 import { adminAuth } from "../middleware/adminAuth.js";
 import {
@@ -61,6 +62,7 @@ router.get("/verified-users", adminAuth, getVerifiedUsers);
 router.post("/dummy/user", adminAuth, createDummyUser);
 router.post("/dummy/petition", adminAuth, createDummyPetition);
 router.post("/dummy/sign", adminAuth, addDummySignatures);
+router.post("/reset-kyc", adminAuth, resetUserKyc);
 
 // Admin file upload helper
 import upload from "../middleware/upload.js";

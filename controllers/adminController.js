@@ -594,3 +594,51 @@ export const addDummySignatures = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// @desc    Reset Aadhaar, PAN, and/or Voter ID verification for a user (for testing purposes)
+// @route   POST /api/admin/reset-kyc
+// @access  Private/Admin
+export const resetUserKyc = async (req, res) => {
+  try {
+    const { userId, type } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ success: false, message: "User ID is required" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Reset specific KYC type or all if no type specified
+    let resetLabel = "";
+    if (type === "aadhaar") {
+      user.aadhaarKyc = { status: "not_verified" };
+      resetLabel = "Aadhaar";
+    } else if (type === "pan") {
+      user.panKyc = { status: "not_verified" };
+      resetLabel = "PAN";
+    } else if (type === "voter") {
+      user.voterKyc = { status: "not_verified" };
+      resetLabel = "Voter ID";
+    } else {
+      // Reset all
+      user.aadhaarKyc = { status: "not_verified" };
+      user.panKyc = { status: "not_verified" };
+      user.voterKyc = { status: "not_verified" };
+      resetLabel = "All KYC";
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: `${resetLabel} verification for user ${user.name} has been reset successfully`,
+    });
+  } catch (error) {
+    console.error("Error resetting user KYC:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
