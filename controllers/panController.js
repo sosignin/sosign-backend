@@ -6,6 +6,7 @@ import {
 } from "../utils/panVerificationUtils.js";
 import { verifyPanWithPlanApi } from "../utils/planApiPan.js";
 import User from "../models/userModel.js";
+import Wallet from "../models/walletModel.js";
 
 // @desc    Verify PAN Card and return verification token
 // @route   POST /api/pan/verify
@@ -32,6 +33,15 @@ const verifyPanCard = asyncHandler(async (req, res) => {
     throw new Error("Your PAN Card is already verified");
   }
 
+  // Check user's wallet balance
+  const wallet = await Wallet.getOrCreateWallet(req.user._id);
+  const PAN_VERIFICATION_COST = 2; // 2 points (₹10 equivalent)
+
+  if (wallet.balance < PAN_VERIFICATION_COST) {
+    res.status(400);
+    throw new Error(`Insufficient wallet balance. PAN verification requires ${PAN_VERIFICATION_COST} Points.`);
+  }
+
   let verifyResult;
   try {
     verifyResult = await verifyPanWithPlanApi(panNumber);
@@ -50,6 +60,15 @@ const verifyPanCard = asyncHandler(async (req, res) => {
   }
 
   const { registeredName, fatherName, panType } = verifyResult;
+
+  // Deduct from wallet on successful verification
+  wallet.balance -= PAN_VERIFICATION_COST;
+  wallet.transactions.push({
+    type: "debit",
+    amount: PAN_VERIFICATION_COST,
+    description: `PAN verification charges for ${panNumber}`,
+  });
+  await wallet.save();
 
   // Update user's KYC fields
   const user = await User.findById(req.user._id);
@@ -79,6 +98,8 @@ const verifyPanCard = asyncHandler(async (req, res) => {
     message: "PAN Card verified successfully",
     panVerificationToken,
     registeredName: registeredName || "N/A",
+    fatherName: fatherName || "N/A",
+    panType: panType || "N/A",
   });
 });
 

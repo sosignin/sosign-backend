@@ -97,7 +97,9 @@ const verifyPanWithPlanApi = async (panNumber) => {
   const { payload, raw } = await parseProviderResponse(response);
   const message = getProviderMessage(payload);
 
-  if (!response.ok || !isProviderSuccess(payload)) {
+  const isSuccess = isProviderSuccess(payload);
+
+  if (!isSuccess) {
     throw new Error(
       message || `Failed to verify PAN Card (HTTP ${response.status})`,
     );

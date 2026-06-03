@@ -5,6 +5,7 @@ import {
 } from "../utils/voterVerificationUtils.js";
 import { verifyVoterWithPlanApi } from "../utils/planApiVoter.js";
 import User from "../models/userModel.js";
+import Wallet from "../models/walletModel.js";
 
 // @desc    Verify Voter ID and return verification token
 // @route   POST /api/voter/verify
@@ -29,6 +30,15 @@ const verifyVoterCard = asyncHandler(async (req, res) => {
   if (existingUser?.voterKyc?.status === "verified") {
     res.status(400);
     throw new Error("Your Voter ID is already verified");
+  }
+
+  // Check user's wallet balance
+  const wallet = await Wallet.getOrCreateWallet(req.user._id);
+  const VOTER_VERIFICATION_COST = 2; // 2 points (₹10 equivalent)
+
+  if (wallet.balance < VOTER_VERIFICATION_COST) {
+    res.status(400);
+    throw new Error(`Insufficient wallet balance. Voter ID verification requires ${VOTER_VERIFICATION_COST} Points.`);
   }
 
   let verifyResult;
@@ -58,6 +68,15 @@ const verifyVoterCard = asyncHandler(async (req, res) => {
     area,
     district,
   } = verifyResult;
+
+  // Deduct from wallet on successful verification
+  wallet.balance -= VOTER_VERIFICATION_COST;
+  wallet.transactions.push({
+    type: "debit",
+    amount: VOTER_VERIFICATION_COST,
+    description: `Voter ID verification charges for ${voterId}`,
+  });
+  await wallet.save();
 
   // Update user's KYC fields
   const user = await User.findById(req.user._id);
@@ -91,6 +110,12 @@ const verifyVoterCard = asyncHandler(async (req, res) => {
     message: "Voter ID verified successfully",
     voterVerificationToken,
     registeredName: holderName || "N/A",
+    dob: dob || "N/A",
+    gender: gender || "N/A",
+    relation: relation || "N/A",
+    relationType: relationType || "N/A",
+    area: area || "N/A",
+    district: district || "N/A",
   });
 });
 
