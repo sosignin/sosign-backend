@@ -692,6 +692,10 @@ const updatePetition = asyncHandler(async (req, res) => {
     };
   }
 
+  // Set petition to pending approval when edited
+  petition.approved = false;
+  petition.status = "pending"; // Reset status to pending for re-approval
+
   const updatedPetition = await petition.save();
 
   res.status(200).json({
@@ -702,6 +706,8 @@ const updatePetition = asyncHandler(async (req, res) => {
     petitionDetails: updatedPetition.petitionDetails,
     petitionStarter: updatedPetition.petitionStarter,
     numberOfSignatures: updatedPetition.numberOfSignatures,
+    approved: updatedPetition.approved,
+    status: updatedPetition.status,
     createdAt: updatedPetition.createdAt,
     updatedAt: updatedPetition.updatedAt,
   });

@@ -161,10 +161,13 @@ import Notification from "../models/notificationModel.js";
 export const getUnapprovedPetitions = async (req, res) => {
   try {
     const petitions = await Petition.find({
-      status: "pending",
+      $or: [
+        { status: "pending" },
+        { approved: false, status: "approved" } // Catch re-edited petitions
+      ]
     })
       .populate("petitionStarter.user", "name email")
-      .sort({ createdAt: -1 });
+      .sort({ updatedAt: -1, createdAt: -1 });
     res.status(200).json({ petitions });
   } catch (error) {
     console.error("Error fetching unapproved petitions:", error);

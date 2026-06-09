@@ -60,7 +60,7 @@ export const createProgressUpdate = asyncHandler(async (req, res) => {
     documents,
     videoUrl,
     milestone,
-    isApproved: true, // Assuming auto-published
+    isApproved: true, // Auto-publish for creators
   });
 
   const createdUpdate = await update.save();
