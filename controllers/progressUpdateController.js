@@ -182,3 +182,25 @@ export const updateProgressPercentage = asyncHandler(async (req, res) => {
     progressPercentage: petition.progressPercentage,
   });
 });
+
+// @desc    Get a single progress update by ID
+// @route   GET /api/progress-updates/update/:id
+// @access  Public
+export const getProgressUpdateById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const update = await ProgressUpdate.findById(id)
+    .populate("petition", "title description status numberOfSignatures targetSignatures comments shares signatures")
+    .populate("author", "name email designation profilePicture")
+    .lean();
+
+  if (!update) {
+    res.status(404);
+    throw new Error("Progress update not found");
+  }
+
+  res.json({
+    success: true,
+    data: update,
+  });
+});

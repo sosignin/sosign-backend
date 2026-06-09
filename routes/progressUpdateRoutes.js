@@ -2,6 +2,7 @@ import express from "express";
 import {
   createProgressUpdate,
   getProgressUpdates,
+  getProgressUpdateById,
   deleteProgressUpdate,
   reactToUpdate,
   updateProgressPercentage,
@@ -28,6 +29,7 @@ router
 router.route("/:petitionId/progress").put(protect, updateProgressPercentage);
 
 // Routes for a specific progress update
+router.route("/update/:id").get(getOptionalUser, getProgressUpdateById);
 router.route("/:id").delete(protect, deleteProgressUpdate);
 router.route("/:id/react").put(protect, reactToUpdate);
 
