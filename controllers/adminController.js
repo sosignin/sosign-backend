@@ -85,7 +85,7 @@ export const adminLogout = (req, res) => {
 export const getUsers = async (req, res) => {
   try {
     console.log("🔍 Fetching users...");
-    const users = await User.find({}, "name email createdAt isSuspended"); // Select name, email, createdAt, and isSuspended
+    const users = await User.find({}, "name email mobileNumber createdAt isSuspended"); // Select name, email, mobileNumber, createdAt, and isSuspended
     console.log(`👥 Found users: ${users.length}`);
     console.log(
       "📅 Sample user with dates:",
@@ -645,3 +645,49 @@ export const resetUserKyc = async (req, res) => {
   }
 };
 
+// @desc    Update or reset a user's mobile number
+// @route   PUT /api/admin/customers/:id/mobile
+// @access  Private/Admin
+export const updateUserMobile = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { mobileNumber } = req.body;
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // If mobileNumber is empty/null, reset it (clear the field)
+    if (!mobileNumber || mobileNumber.trim() === "") {
+      user.mobileNumber = undefined;
+      await user.save();
+      return res.status(200).json({
+        success: true,
+        message: `Mobile number for ${user.name} has been reset successfully`,
+        user: { _id: user._id, mobileNumber: null },
+      });
+    }
+
+    // Validate mobile number format (10-digit Indian number)
+    const cleanNumber = mobileNumber.trim();
+    if (!/^\d{10}$/.test(cleanNumber)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid mobile number. Please enter a valid 10-digit number.",
+      });
+    }
+
+    user.mobileNumber = cleanNumber;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Mobile number for ${user.name} has been updated to ${cleanNumber}`,
+      user: { _id: user._id, mobileNumber: cleanNumber },
+    });
+  } catch (error) {
+    console.error("Error updating user mobile:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

@@ -190,7 +190,7 @@ export const getProgressUpdateById = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const update = await ProgressUpdate.findById(id)
-    .populate("petition", "title description status numberOfSignatures targetSignatures comments shares signatures")
+    .populate("petition", "title description status numberOfSignatures targetSignatures comments shares signatures media image images")
     .populate("author", "name email designation profilePicture")
     .lean();
 
