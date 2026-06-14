@@ -55,8 +55,9 @@ const registerUser = asyncHandler(async (req, res) => {
   
   // Validate email with ValidEmail.net API
   try {
+    const validationToken = process.env.VALID_EMAIL_TOKEN || "2bfb71cea3dc47ea8f4cf47b5862fa60";
     const emailValidationResponse = await fetch(
-      `https://api.ValidEmail.net/?email=${email}&token=2bfb71cea3dc47ea8f4cf47b5862fa60`
+      `https://api.ValidEmail.net/?email=${encodeURIComponent(email)}&token=${validationToken}`
     );
     const emailValidationData = await emailValidationResponse.json();
 
@@ -327,6 +328,37 @@ const forgotPassword = asyncHandler(async (req, res) => {
     throw new Error("Please provide an email address");
   }
 
+  // Validate email with ValidEmail.net API before proceeding
+  try {
+    const validationToken = process.env.VALID_EMAIL_TOKEN || "2bfb71cea3dc47ea8f4cf47b5862fa60";
+    const emailValidationResponse = await fetch(
+      `https://api.ValidEmail.net/?email=${encodeURIComponent(email)}&token=${validationToken}`
+    );
+    const emailValidationData = await emailValidationResponse.json();
+
+    if (emailValidationData && emailValidationData.IsValid === false) {
+      res.status(400);
+      throw new Error("The email address provided appears to be invalid. Please enter a valid email address.");
+    }
+
+    // Block disposable/temporary email addresses
+    if (emailValidationData && emailValidationData.Disposable === true) {
+      res.status(400);
+      throw new Error("Disposable/temporary email addresses are not allowed. Please use a permanent email address.");
+    }
+
+    // Block emails with very low confidence score
+    if (emailValidationData && emailValidationData.Score !== undefined && emailValidationData.Score < 50) {
+      res.status(400);
+      throw new Error("The email address provided could not be verified. Please check and try again.");
+    }
+  } catch (error) {
+    console.error("Email validation API error:", error);
+    // If it's a validation error we threw, rethrow it
+    if (res.statusCode === 400) throw error;
+    // For network errors to the validation API, allow through
+  }
+
   const user = await User.findOne({ email });
 
   if (!user) {
@@ -387,29 +419,51 @@ const forgotPassword = asyncHandler(async (req, res) => {
       </div>
     `;
 
-    const emailResult = await sendEmail(
-      user.email,
-      'Reset Your Password - SoSign',
-      emailHtml,
-      `Reset your password by visiting: ${resetUrl}`
-    );
+    let emailSent = false;
+    let emailError = null;
 
-    // Check if email was sent successfully
-    if (!emailResult.success) {
-      throw new Error(emailResult.error || 'Failed to send email');
+    try {
+      const emailResult = await sendEmail(
+        user.email,
+        'Reset Your Password - SoSign',
+        emailHtml,
+        `Reset your password by visiting: ${resetUrl}`
+      );
+
+      if (emailResult.success) {
+        emailSent = true;
+      } else {
+        emailError = emailResult.error;
+      }
+    } catch (err) {
+      emailError = err.message;
     }
 
-    console.log('Password reset email sent to:', user.email);
-    res.status(200).json({ message: "Password reset link has been sent to your email." });
+    if (emailSent) {
+      console.log('Password reset email sent to:', user.email);
+      res.status(200).json({ message: "Password reset link has been sent to your email." });
+    } else {
+      console.warn("Password reset email delivery failed or skipped:", emailError);
+      console.log("==================================================");
+      console.log("DEVELOPMENT RESET URL:");
+      console.log(resetUrl);
+      console.log("==================================================");
+      
+      res.status(200).json({
+        message: "Password reset link generated successfully.",
+        resetUrl,
+        warning: "Email could not be sent (SMTP not configured or failed). Use the link below."
+      });
+    }
   } catch (error) {
-    // Clear the reset token if email fails
+    // Clear the reset token if anything else fails
     user.passwordResetToken = null;
     user.passwordResetExpires = null;
     await user.save();
 
-    console.error("Email send error:", error);
+    console.error("Forgot password internal error:", error);
     res.status(500);
-    throw new Error("Failed to send password reset email. Please try again later.");
+    throw new Error("Failed to process password reset request. Please try again later.");
   }
 });
 

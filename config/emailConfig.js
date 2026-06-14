@@ -5,6 +5,11 @@ dotenv.config();
 
 // Create transporter for sending emails
 const createTransporter = () => {
+  // Check if credentials are set
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
+    return null;
+  }
+
   // For Gmail SMTP - use port 587 with TLS (more compatible with hosting providers)
   if (process.env.EMAIL_SERVICE === 'gmail') {
     return nodemailer.createTransport({
@@ -197,6 +202,10 @@ export const createPetitionEmailTemplate = (petition, petitionUrl) => {
 export const sendEmail = async (to, subject, html, text) => {
   try {
     const transporter = createTransporter();
+    if (!transporter) {
+      console.warn('SMTP Transporter not created: EMAIL_USER or EMAIL_PASSWORD not set in environment.');
+      return { success: false, error: 'SMTP credentials not configured' };
+    }
 
     const mailOptions = {
       from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
