@@ -18,6 +18,7 @@ import {
   addDummySignatures,
   resetUserKyc,
   updateUserMobile,
+  updateUserName,
 } from "../controllers/adminController.js";
 import { adminAuth } from "../middleware/adminAuth.js";
 import {
@@ -58,6 +59,9 @@ router.put("/customers/:id/suspend", adminAuth, toggleUserSuspension);
 
 // Update/reset user mobile number
 router.put("/customers/:id/mobile", adminAuth, updateUserMobile);
+
+// Update user name
+router.put("/customers/:id/name", adminAuth, updateUserName);
 
 // Get verified users (DigiLocker KYC)
 router.get("/verified-users", adminAuth, getVerifiedUsers);

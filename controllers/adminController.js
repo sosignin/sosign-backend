@@ -691,3 +691,38 @@ export const updateUserMobile = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// @desc    Update a user's name
+// @route   PUT /api/admin/customers/:id/name
+// @access  Private/Admin
+export const updateUserName = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+
+    if (!name || name.trim() === "") {
+      return res.status(400).json({
+        success: false,
+        message: "Name cannot be empty.",
+      });
+    }
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const oldName = user.name;
+    user.name = name.trim();
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: `User name updated from "${oldName}" to "${user.name}"`,
+      user: { _id: user._id, name: user.name },
+    });
+  } catch (error) {
+    console.error("Error updating user name:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
