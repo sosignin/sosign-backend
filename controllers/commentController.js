@@ -233,6 +233,19 @@ const addReply = asyncHandler(async (req, res) => {
     throw new Error("Comment not found");
   }
 
+  // Only the petition creator (petitioner) can reply to comments
+  const petition = await Petition.findById(comment.petition);
+  if (!petition) {
+    res.status(404);
+    throw new Error("Petition not found");
+  }
+
+  const petitionStarterId = petition.petitionStarter?.user?.toString();
+  if (!petitionStarterId || petitionStarterId !== req.user._id.toString()) {
+    res.status(403);
+    throw new Error("Only the petition creator can reply to comments");
+  }
+
   // Add reply with isApproved: false (needs admin approval)
   const reply = {
     user: req.user._id,

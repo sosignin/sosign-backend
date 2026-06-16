@@ -554,7 +554,13 @@ export const addDummySignatures = async (req, res) => {
       const name = `${fName} ${lName}`;
       
       const uniqueSuffix = Math.floor(100000 + Math.random() * 900000);
-      const email = `dummy_${uniqueSuffix}@sosign.com`;
+      const emailDomains = [
+        "gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "protonmail.com",
+        "rediffmail.com", "zoho.com", "icloud.com", "mail.com", "yandex.com",
+        "aol.com", "fastmail.com", "tutanota.com", "inbox.com", "live.com"
+      ];
+      const randomDomain = emailDomains[Math.floor(Math.random() * emailDomains.length)];
+      const email = `dummy_${uniqueSuffix}@${randomDomain}`;
 
       // Create a dummy user for the signature record
       const dummyUser = await User.create({
