@@ -4,6 +4,7 @@ import Petition from "../models/petitionModel.js";
 import SuccessfulPetition from "../models/successfulPetitionModel.js";
 import Wallet from "../models/walletModel.js";
 import Crowdfunding from "../models/crowdfundingModel.js";
+import generateUserToken from "../utils/generateToken.js";
 
 const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;
 
@@ -729,6 +730,35 @@ export const updateUserName = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating user name:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Impersonate a user (generate login token)
+// @route   POST /api/admin/customers/:id/login-as
+// @access  Private/Admin
+export const loginAsUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const token = generateUserToken(res, user._id);
+
+    res.status(200).json({
+      success: true,
+      message: `Login token generated for ${user.name}`,
+      token,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+      }
+    });
+  } catch (error) {
+    console.error("Error in loginAsUser:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
