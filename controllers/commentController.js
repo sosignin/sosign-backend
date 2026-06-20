@@ -633,6 +633,7 @@ const rejectReply = asyncHandler(async (req, res) => {
 // @access  Admin
 const approveComment = asyncHandler(async (req, res) => {
   const id = req.params.id;
+  const isAdminAuth = !!req.admin;
 
   // Handle reply approval if ID matches our special format
   if (id.startsWith("reply-")) {
@@ -652,19 +653,21 @@ const approveComment = asyncHandler(async (req, res) => {
       throw new Error("Reply not found");
     }
 
-    // Check authorization: admin or petition creator
-    const petition = await Petition.findById(comment.petition);
-    const isCreator = petition && petition.petitionStarter.user.toString() === req.user._id.toString();
-    const isAdmin = req.user.role === "admin" || req.user.role === "superadmin";
+    // Check authorization: admin auth or petition creator
+    if (!isAdminAuth) {
+      const petition = await Petition.findById(comment.petition);
+      const isCreator = petition && req.user && petition.petitionStarter.user.toString() === req.user._id.toString();
+      const isUserAdmin = req.user && (req.user.role === "admin" || req.user.role === "superadmin");
 
-    if (!isCreator && !isAdmin) {
-      res.status(403);
-      throw new Error("Not authorized to approve this reply");
+      if (!isCreator && !isUserAdmin) {
+        res.status(403);
+        throw new Error("Not authorized to approve this reply");
+      }
     }
 
     reply.isApproved = true;
     reply.approvedAt = new Date();
-    reply.approvedBy = req.user.name || "user";
+    reply.approvedBy = isAdminAuth ? (req.admin.username || "admin") : (req.user.name || "user");
 
     await comment.save();
 
@@ -682,19 +685,21 @@ const approveComment = asyncHandler(async (req, res) => {
     throw new Error("Comment not found");
   }
 
-  // Check authorization: admin or petition creator
-  const petition = await Petition.findById(comment.petition);
-  const isCreator = petition && petition.petitionStarter.user.toString() === req.user._id.toString();
-  const isAdmin = req.user.role === "admin" || req.user.role === "superadmin";
+  // Check authorization: admin auth or petition creator
+  if (!isAdminAuth) {
+    const petition = await Petition.findById(comment.petition);
+    const isCreator = petition && req.user && petition.petitionStarter.user.toString() === req.user._id.toString();
+    const isUserAdmin = req.user && (req.user.role === "admin" || req.user.role === "superadmin");
 
-  if (!isCreator && !isAdmin) {
-    res.status(403);
-    throw new Error("Not authorized to approve this comment");
+    if (!isCreator && !isUserAdmin) {
+      res.status(403);
+      throw new Error("Not authorized to approve this comment");
+    }
   }
 
   comment.isApproved = true;
   comment.approvedAt = new Date();
-  comment.approvedBy = req.user.name || "user";
+  comment.approvedBy = isAdminAuth ? (req.admin.username || "admin") : (req.user.name || "user");
 
   await comment.save();
 
@@ -709,6 +714,7 @@ const approveComment = asyncHandler(async (req, res) => {
 // @access  Admin or Petition Creator
 const rejectComment = asyncHandler(async (req, res) => {
   const id = req.params.id;
+  const isAdminAuth = !!req.admin;
 
   // Handle reply rejection if ID matches our special format
   if (id.startsWith("reply-")) {
@@ -728,14 +734,16 @@ const rejectComment = asyncHandler(async (req, res) => {
       throw new Error("Reply not found");
     }
 
-    // Check authorization: admin or petition creator
-    const petition = await Petition.findById(comment.petition);
-    const isCreator = petition && petition.petitionStarter.user.toString() === req.user._id.toString();
-    const isAdmin = req.user.role === "admin" || req.user.role === "superadmin";
+    // Check authorization: admin auth or petition creator
+    if (!isAdminAuth) {
+      const petition = await Petition.findById(comment.petition);
+      const isCreator = petition && req.user && petition.petitionStarter.user.toString() === req.user._id.toString();
+      const isUserAdmin = req.user && (req.user.role === "admin" || req.user.role === "superadmin");
 
-    if (!isCreator && !isAdmin) {
-      res.status(403);
-      throw new Error("Not authorized to reject this reply");
+      if (!isCreator && !isUserAdmin) {
+        res.status(403);
+        throw new Error("Not authorized to reject this reply");
+      }
     }
 
     reply.remove();
@@ -755,14 +763,16 @@ const rejectComment = asyncHandler(async (req, res) => {
     throw new Error("Comment not found");
   }
 
-  // Check authorization: admin or petition creator
-  const petition = await Petition.findById(comment.petition);
-  const isCreator = petition && petition.petitionStarter.user.toString() === req.user._id.toString();
-  const isAdmin = req.user.role === "admin" || req.user.role === "superadmin";
+  // Check authorization: admin auth or petition creator
+  if (!isAdminAuth) {
+    const petition = await Petition.findById(comment.petition);
+    const isCreator = petition && req.user && petition.petitionStarter.user.toString() === req.user._id.toString();
+    const isUserAdmin = req.user && (req.user.role === "admin" || req.user.role === "superadmin");
 
-  if (!isCreator && !isAdmin) {
-    res.status(403);
-    throw new Error("Not authorized to reject this comment");
+    if (!isCreator && !isUserAdmin) {
+      res.status(403);
+      throw new Error("Not authorized to reject this comment");
+    }
   }
 
   await Comment.findByIdAndDelete(id);

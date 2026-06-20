@@ -24,6 +24,8 @@ const router = express.Router();
 
 // Admin routes (specific path with /admin/)
 router.get("/admin/unapproved", adminAuth, getUnapprovedComments);
+router.put("/admin/:id/approve", adminAuth, approveComment);
+router.delete("/admin/:id/reject", adminAuth, rejectComment);
 
 // Petition creator routes for managing comments - EXPLICIT ROUTE
 router.get("/petition/:petitionId/pending", protect, getPendingCommentsForPetition);

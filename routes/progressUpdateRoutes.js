@@ -8,7 +8,7 @@ import {
   updateProgressPercentage,
 } from "../controllers/progressUpdateController.js";
 import { protect, getOptionalUser } from "../middleware/authMiddleware.js";
-import { uploadProgressFiles } from "../middleware/upload.js";
+import { uploadProgressFiles, processProgressFiles } from "../middleware/upload.js";
 
 const router = express.Router();
 
@@ -22,6 +22,7 @@ router
       { name: "images", maxCount: 4 },
       { name: "documents", maxCount: 2 },
     ]),
+    processProgressFiles,
     createProgressUpdate
   );
 

@@ -28,34 +28,26 @@ const upload = multer({
   },
 });
 
-// Storage for progress updates (supports images and documents/PDFs)
-const progressStorage = new CloudinaryStorage({
+// Storage for progress update images (CloudinaryStorage handles images fine)
+const progressImageStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
-  params: async (req, file) => {
-    // Determine folder and resource type based on file mimetype
-    if (file.mimetype === "application/pdf") {
-      return {
-        folder: "progress-documents",
-        format: "pdf",
-        resource_type: "raw", // PDFs and other non-image files must be uploaded as raw or auto in Cloudinary
-      };
-    } else {
-      return {
-        folder: "progress-images",
-        allowed_formats: ["jpg", "jpeg", "png", "gif", "webp"],
-        transformation: [
-          { width: 1200, height: 800, crop: "limit" },
-          { quality: "auto:good" },
-        ],
-      };
-    }
+  params: {
+    folder: "progress-images",
+    allowed_formats: ["jpg", "jpeg", "png", "gif", "webp"],
+    transformation: [
+      { width: 1200, height: 800, crop: "limit" },
+      { quality: "auto:good" },
+    ],
   },
 });
 
+// Use memory storage so we can handle PDFs manually via Cloudinary upload_stream
+const progressMemoryStorage = multer.memoryStorage();
+
 const uploadProgressFiles = multer({
-  storage: progressStorage,
+  storage: progressMemoryStorage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit for documents, images should ideally be smaller
+    fileSize: 10 * 1024 * 1024, // 10MB limit
   },
   fileFilter: (req, file, cb) => {
     if (
@@ -69,5 +61,72 @@ const uploadProgressFiles = multer({
   },
 });
 
-export { uploadProgressFiles };
+// Helper: upload a single buffer to Cloudinary
+const uploadToCloudinary = (buffer, options) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(options, (error, result) => {
+      if (error) return reject(error);
+      resolve(result);
+    });
+    stream.end(buffer);
+  });
+};
+
+// Middleware to process uploaded files: upload images and PDFs to Cloudinary
+const processProgressFiles = async (req, res, next) => {
+  try {
+    // If no files were uploaded (e.g. text or video updates), skip processing
+    if (!req.files || Object.keys(req.files).length === 0) return next();
+
+    const imageFiles = req.files.images || [];
+    const docFiles = req.files.documents || [];
+
+    // If no actual files in any field, skip
+    if (imageFiles.length === 0 && docFiles.length === 0) return next();
+
+    const processedFiles = { images: [], documents: [] };
+
+    // Process image files
+    for (const file of imageFiles) {
+      if (!file.buffer) continue;
+      const result = await uploadToCloudinary(file.buffer, {
+        folder: "progress-images",
+        resource_type: "image",
+        transformation: [
+          { width: 1200, height: 800, crop: "limit" },
+          { quality: "auto:good" },
+        ],
+      });
+      processedFiles.images.push({
+        ...file,
+        path: result.secure_url,
+        filename: result.public_id,
+      });
+    }
+
+    // Process PDF documents
+    for (const file of docFiles) {
+      if (!file.buffer) continue;
+      const result = await uploadToCloudinary(file.buffer, {
+        folder: "progress-documents",
+        resource_type: "raw",
+      });
+      processedFiles.documents.push({
+        ...file,
+        path: result.secure_url,
+        filename: file.originalname,
+      });
+    }
+
+    // Replace req.files with processed files (same shape the controller expects)
+    req.files = processedFiles;
+    next();
+  } catch (error) {
+    console.error("Error processing progress files:", error);
+    next(error);
+  }
+};
+
+export { uploadProgressFiles, processProgressFiles };
 export default upload;
+

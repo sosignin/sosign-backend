@@ -26,7 +26,7 @@ const progressUpdateSchema = mongoose.Schema(
     },
     updateType: {
       type: String,
-      enum: ["text", "image", "document", "milestone"],
+      enum: ["text", "image", "document", "milestone", "video"],
       default: "text",
     },
     images: [{ type: String }], // Cloudinary URLs

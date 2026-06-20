@@ -61,7 +61,8 @@ const registerUser = asyncHandler(async (req, res) => {
     );
     const emailValidationData = await emailValidationResponse.json();
 
-    if (emailValidationData && emailValidationData.IsValid === false) {
+    const apiIsValid = emailValidationData && (emailValidationData.isValid !== undefined ? emailValidationData.isValid : emailValidationData.IsValid);
+    if (emailValidationData && apiIsValid === false) {
       res.status(400);
       throw new Error(`The email address provided appears to be invalid or 'fake'. Please use a real email address to join SoSign.`);
     }
@@ -336,19 +337,23 @@ const forgotPassword = asyncHandler(async (req, res) => {
     );
     const emailValidationData = await emailValidationResponse.json();
 
-    if (emailValidationData && emailValidationData.IsValid === false) {
+    const apiIsValid = emailValidationData && (emailValidationData.isValid !== undefined ? emailValidationData.isValid : emailValidationData.IsValid);
+    const apiDisposable = emailValidationData && (emailValidationData.disposable !== undefined ? emailValidationData.disposable : emailValidationData.Disposable);
+    const apiScore = emailValidationData && (emailValidationData.score !== undefined ? emailValidationData.score : emailValidationData.Score);
+
+    if (emailValidationData && apiIsValid === false) {
       res.status(400);
       throw new Error("The email address provided appears to be invalid. Please enter a valid email address.");
     }
 
     // Block disposable/temporary email addresses
-    if (emailValidationData && emailValidationData.Disposable === true) {
+    if (emailValidationData && apiDisposable === true) {
       res.status(400);
       throw new Error("Disposable/temporary email addresses are not allowed. Please use a permanent email address.");
     }
 
     // Block emails with very low confidence score
-    if (emailValidationData && emailValidationData.Score !== undefined && emailValidationData.Score < 50) {
+    if (emailValidationData && apiScore !== undefined && apiScore < 50) {
       res.status(400);
       throw new Error("The email address provided could not be verified. Please check and try again.");
     }
@@ -384,8 +389,16 @@ const forgotPassword = asyncHandler(async (req, res) => {
   user.passwordResetExpires = Date.now() + 3600000; // 1 hour from now
   await user.save();
 
-  // Create reset URL - hardcoded for reliability
-  const frontendUrl = 'https://www.sosign.in';
+  // Create reset URL dynamically based on request origin or fallback
+  let origin = req.headers.origin;
+  if (!origin && req.headers.referer) {
+    try {
+      origin = new URL(req.headers.referer).origin;
+    } catch (e) {
+      // ignore
+    }
+  }
+  const frontendUrl = origin || process.env.FRONTEND_URL || 'https://www.sosign.in';
   const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
 
   // Send email using SMTP
