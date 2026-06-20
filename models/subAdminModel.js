@@ -37,6 +37,8 @@ const subAdminSchema = new mongoose.Schema(
         "wallet-requests",
         "users",
         "categories",
+        "crowdfunding",
+        "withdrawals",
       ],
     },
     isActive: {
