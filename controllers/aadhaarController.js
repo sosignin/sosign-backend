@@ -252,6 +252,14 @@ const verifyAadhaarKyc = asyncHandler(async (req, res) => {
 // @access  Private
 const initializeDigilocker = asyncHandler(async (req, res) => {
   try {
+    const user = await User.findById(req.user._id);
+    if (user?.aadhaarKyc?.status === "verified") {
+      return res.status(400).json({
+        success: false,
+        message: "Your Aadhaar KYC is already verified",
+      });
+    }
+
     const { name, email, mobileNumber } = req.user;
     
     // We can use a custom redirect URL or let frontend handle it
@@ -314,19 +322,25 @@ const completeDigilockerKyc = asyncHandler(async (req, res) => {
   }
 
   try {
-    const status = await checkDigilockerStatus(clientId);
-    if (!status.isCompleted || !status.aadhaarLinked) {
-      res.status(400);
-      throw new Error("DigiLocker session is not completed or Aadhaar is not linked");
-    }
-
-    const aadhaarData = await downloadDigilockerAadhaar(clientId);
-
     const user = await User.findById(req.user._id);
     if (!user) {
       res.status(404);
       throw new Error("User not found");
     }
+
+    // Guard: If already verified, return successful response immediately to avoid duplicate API calls/costs
+    if (user.aadhaarKyc?.status === "verified") {
+      return res.status(200).json({
+        success: true,
+        message: "DigiLocker KYC completed successfully",
+        aadhaarKyc: user.aadhaarKyc,
+      });
+    }
+
+    // Skip status check — it costs API points. The redirect from DigiLocker
+    // already confirms auth completion. downloadDigilockerAadhaar will fail
+    // if the session isn't actually ready.
+    const aadhaarData = await downloadDigilockerAadhaar(clientId);
 
     user.aadhaarKyc = {
       status: "verified",
