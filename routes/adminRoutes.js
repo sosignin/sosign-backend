@@ -20,7 +20,14 @@ import {
   updateUserMobile,
   updateUserName,
   loginAsUser,
+  updateUserPlan,
 } from "../controllers/adminController.js";
+import {
+  adminGetPlans,
+  adminCreatePlan,
+  adminUpdatePlan,
+  adminDeletePlan,
+} from "../controllers/planController.js";
 import { adminAuth } from "../middleware/adminAuth.js";
 import {
   getPetitions,
@@ -66,6 +73,15 @@ router.put("/customers/:id/name", adminAuth, updateUserName);
 
 // Impersonate user (Login as user)
 router.post("/customers/:id/login-as", adminAuth, loginAsUser);
+
+// Update user plan & points balance
+router.put("/customers/:id/plan", adminAuth, updateUserPlan);
+
+// Admin pricing plan package config CRUD
+router.get("/plans", adminAuth, adminGetPlans);
+router.post("/plans", adminAuth, adminCreatePlan);
+router.put("/plans/:id", adminAuth, adminUpdatePlan);
+router.delete("/plans/:id", adminAuth, adminDeletePlan);
 
 // Get verified users (DigiLocker KYC)
 router.get("/verified-users", adminAuth, getVerifiedUsers);

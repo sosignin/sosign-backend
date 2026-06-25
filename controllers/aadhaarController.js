@@ -19,6 +19,8 @@ import {
   downloadDigilockerAadhaar,
 } from "../utils/planApiDigilocker.js";
 import User from "../models/userModel.js";
+import Wallet from "../models/walletModel.js";
+import { calculateVerificationCost } from "../utils/billingUtils.js";
 
 // @desc    Send Aadhaar OTP for verification
 // @route   POST /api/aadhaar/send-otp
@@ -30,6 +32,32 @@ const sendAadhaarOtp = asyncHandler(async (req, res) => {
   if (!isValidAadhaarNumber(aadhaarNumber)) {
     res.status(400);
     throw new Error("Please enter a valid 12-digit Aadhaar number");
+  }
+
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  if (user.aadhaarKyc?.status === "verified") {
+    res.status(400);
+    throw new Error("Your Aadhaar is already verified");
+  }
+
+  // Check balance / free checks before calling external OTP API
+  if (user.freeChecksRemaining === 0) {
+    if (user.plan === "free" || user.plan === "none") {
+      res.status(400);
+      throw new Error("Free checks exhausted. Please purchase a credit plan to verify identity.");
+    }
+
+    const cost = await calculateVerificationCost(user, "aadhaar");
+    const wallet = await Wallet.getOrCreateWallet(user._id);
+    if (wallet.balance < cost) {
+      res.status(400);
+      throw new Error(`Insufficient wallet balance. Aadhaar verification requires ${cost} Points.`);
+    }
   }
 
   let sendOtpResult;
@@ -132,6 +160,35 @@ const verifyAadhaarOtp = asyncHandler(async (req, res) => {
 
   const { message } = verifyOtpResult;
 
+  // Deduct from wallet/free checks on successful verification
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  if (user.freeChecksRemaining > 0) {
+    user.freeChecksRemaining -= 1;
+    await user.save();
+    const wallet = await Wallet.getOrCreateWallet(user._id);
+    wallet.transactions.push({
+      type: "debit",
+      amount: 0,
+      description: `Free Identity Check (Remaining: ${user.freeChecksRemaining})`,
+    });
+    await wallet.save();
+  } else {
+    const cost = await calculateVerificationCost(user, "aadhaar");
+    const wallet = await Wallet.getOrCreateWallet(user._id);
+    wallet.balance -= cost;
+    wallet.transactions.push({
+      type: "debit",
+      amount: cost,
+      description: `Aadhaar verification charges (${cost} Points)`,
+    });
+    await wallet.save();
+  }
+
   const aadhaarVerificationToken = createAadhaarVerificationToken({
     userId: req.user._id.toString(),
     aadhaarNumber,
@@ -173,10 +230,30 @@ const verifyAadhaarKyc = asyncHandler(async (req, res) => {
     console.log("[KYC] Files identified - Front:", frontFile.originalname, "Back:", backFile.originalname);
 
     // Check if user is already KYC verified
-    const existingUser = await User.findById(req.user._id);
-    if (existingUser?.aadhaarKyc?.status === "verified") {
+    const userCheck = await User.findById(req.user._id);
+    if (!userCheck) {
+      res.status(404);
+      throw new Error("User not found");
+    }
+
+    if (userCheck.aadhaarKyc?.status === "verified") {
       res.status(400);
       throw new Error("Your Aadhaar KYC is already verified");
+    }
+
+    // Check balance / free checks before calling external OCR API
+    if (userCheck.freeChecksRemaining === 0) {
+      if (userCheck.plan === "free" || userCheck.plan === "none") {
+        res.status(400);
+        throw new Error("Free checks exhausted. Please purchase a credit plan to verify identity.");
+      }
+
+      const cost = await calculateVerificationCost(userCheck, "aadhaar");
+      const wallet = await Wallet.getOrCreateWallet(userCheck._id);
+      if (wallet.balance < cost) {
+        res.status(400);
+        throw new Error(`Insufficient wallet balance. Aadhaar verification requires ${cost} Points.`);
+      }
     }
 
     let ocrResult;
@@ -208,13 +285,26 @@ const verifyAadhaarKyc = asyncHandler(async (req, res) => {
 
     console.log("[KYC] OCR result:", JSON.stringify({ aadhaarNumber: ocrResult.aadhaarNumber, name: ocrResult.name, valid: ocrResult.valid }));
 
-    // Update user's KYC fields
-    const user = await User.findById(req.user._id);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
+    // Deduct from wallet/free checks on successful verification
+    if (user.freeChecksRemaining > 0) {
+      user.freeChecksRemaining -= 1;
+      const wallet = await Wallet.getOrCreateWallet(user._id);
+      wallet.transactions.push({
+        type: "debit",
+        amount: 0,
+        description: `Free Identity Check (Remaining: ${user.freeChecksRemaining})`,
       });
+      await wallet.save();
+    } else {
+      const cost = await calculateVerificationCost(user, "aadhaar");
+      const wallet = await Wallet.getOrCreateWallet(user._id);
+      wallet.balance -= cost;
+      wallet.transactions.push({
+        type: "debit",
+        amount: cost,
+        description: `Aadhaar verification charges (${cost} Points)`,
+      });
+      await wallet.save();
     }
 
     user.aadhaarKyc = {
@@ -253,11 +343,37 @@ const verifyAadhaarKyc = asyncHandler(async (req, res) => {
 const initializeDigilocker = asyncHandler(async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
-    if (user?.aadhaarKyc?.status === "verified") {
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    if (user.aadhaarKyc?.status === "verified") {
       return res.status(400).json({
         success: false,
         message: "Your Aadhaar KYC is already verified",
       });
+    }
+
+    // Check balance / free checks before initializing DigiLocker
+    if (user.freeChecksRemaining === 0) {
+      if (user.plan === "free" || user.plan === "none") {
+        return res.status(400).json({
+          success: false,
+          message: "Free checks exhausted. Please purchase a credit plan to verify identity.",
+        });
+      }
+
+      const cost = await calculateVerificationCost(user, "aadhaar");
+      const wallet = await Wallet.getOrCreateWallet(user._id);
+      if (wallet.balance < cost) {
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient wallet balance. Aadhaar verification requires ${cost} Points.`,
+        });
+      }
     }
 
     const { name, email, mobileNumber } = req.user;
@@ -341,6 +457,28 @@ const completeDigilockerKyc = asyncHandler(async (req, res) => {
     // already confirms auth completion. downloadDigilockerAadhaar will fail
     // if the session isn't actually ready.
     const aadhaarData = await downloadDigilockerAadhaar(clientId);
+
+    // Deduct from wallet/free checks on successful DigiLocker completion
+    if (user.freeChecksRemaining > 0) {
+      user.freeChecksRemaining -= 1;
+      const wallet = await Wallet.getOrCreateWallet(user._id);
+      wallet.transactions.push({
+        type: "debit",
+        amount: 0,
+        description: `Free Identity Check (Remaining: ${user.freeChecksRemaining})`,
+      });
+      await wallet.save();
+    } else {
+      const cost = await calculateVerificationCost(user, "aadhaar");
+      const wallet = await Wallet.getOrCreateWallet(user._id);
+      wallet.balance -= cost;
+      wallet.transactions.push({
+        type: "debit",
+        amount: cost,
+        description: `Aadhaar verification charges (${cost} Points)`,
+      });
+      await wallet.save();
+    }
 
     user.aadhaarKyc = {
       status: "verified",

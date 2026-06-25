@@ -33,6 +33,7 @@ import withdrawalRoutes from "./routes/withdrawalRoutes.js";
 import panRoutes from "./routes/panRoutes.js";
 import voterRoutes from "./routes/voterRoutes.js";
 import progressUpdateRoutes from "./routes/progressUpdateRoutes.js";
+import planRoutes from "./routes/planRoutes.js";
 
 
 // Middleware
@@ -40,6 +41,7 @@ import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
 
 // Models (for seeding)
 import Category from "./models/categoryModel.js";
+import Plan from "./models/planModel.js";
 
 // Load environment variables
 dotenv.config();
@@ -51,6 +53,12 @@ connectDB().then(async () => {
     await Category.seedDefaults();
   } catch (error) {
     console.error("Error seeding categories:", error.message);
+  }
+  // Seed default plans
+  try {
+    await Plan.seedDefaults();
+  } catch (error) {
+    console.error("Error seeding plans:", error.message);
   }
 });
 
@@ -195,6 +203,7 @@ app.use("/api/withdrawals", withdrawalRoutes);
 app.use("/api/pan", panRoutes);
 app.use("/api/voter", voterRoutes);
 app.use("/api/progress-updates", progressUpdateRoutes);
+app.use("/api/plans", planRoutes);
 
 
 // Root endpoint

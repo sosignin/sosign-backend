@@ -40,6 +40,8 @@ const authUser = asyncHandler(async (req, res) => {
       aadhaarKyc: userWithPetitions.aadhaarKyc || { status: "not_verified" },
       panKyc: userWithPetitions.panKyc || { status: "not_verified" },
       voterKyc: userWithPetitions.voterKyc || { status: "not_verified" },
+      plan: userWithPetitions.plan || "free",
+      freeChecksRemaining: userWithPetitions.freeChecksRemaining !== undefined ? userWithPetitions.freeChecksRemaining : 4,
     });
   } else {
     res.status(401);
@@ -118,6 +120,8 @@ const registerUser = asyncHandler(async (req, res) => {
       aadhaarKyc: user.aadhaarKyc || { status: "not_verified" },
       panKyc: user.panKyc || { status: "not_verified" },
       voterKyc: user.voterKyc || { status: "not_verified" },
+      plan: user.plan || "free",
+      freeChecksRemaining: user.freeChecksRemaining !== undefined ? user.freeChecksRemaining : 4,
     });
   } else {
     res.status(400);
@@ -171,6 +175,8 @@ const getUserProfile = asyncHandler(async (req, res) => {
       aadhaarKyc: userWithPetitions.aadhaarKyc || { status: "not_verified" },
       panKyc: userWithPetitions.panKyc || { status: "not_verified" },
       voterKyc: userWithPetitions.voterKyc || { status: "not_verified" },
+      plan: userWithPetitions.plan || "free",
+      freeChecksRemaining: userWithPetitions.freeChecksRemaining !== undefined ? userWithPetitions.freeChecksRemaining : 4,
     });
   } else {
     res.status(404);
@@ -235,6 +241,8 @@ const updateUserProfile = asyncHandler(async (req, res) => {
     aadhaarKyc: updatedUser.aadhaarKyc || { status: "not_verified" },
     panKyc: updatedUser.panKyc || { status: "not_verified" },
     voterKyc: updatedUser.voterKyc || { status: "not_verified" },
+    plan: updatedUser.plan || "free",
+    freeChecksRemaining: updatedUser.freeChecksRemaining !== undefined ? updatedUser.freeChecksRemaining : 4,
     message: "Profile updated successfully",
   });
 });
@@ -278,6 +286,8 @@ const authGoogleUser = asyncHandler(async (req, res) => {
       aadhaarKyc: user.aadhaarKyc || { status: "not_verified" },
       panKyc: user.panKyc || { status: "not_verified" },
       voterKyc: user.voterKyc || { status: "not_verified" },
+      plan: user.plan || "free",
+      freeChecksRemaining: user.freeChecksRemaining !== undefined ? user.freeChecksRemaining : 4,
     });
   } else {
     // User does not exist, register them
@@ -310,6 +320,8 @@ const authGoogleUser = asyncHandler(async (req, res) => {
         aadhaarKyc: user.aadhaarKyc || { status: "not_verified" },
         panKyc: user.panKyc || { status: "not_verified" },
         voterKyc: user.voterKyc || { status: "not_verified" },
+        plan: user.plan || "free",
+        freeChecksRemaining: user.freeChecksRemaining !== undefined ? user.freeChecksRemaining : 4,
       });
     } else {
       res.status(400);

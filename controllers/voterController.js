@@ -6,6 +6,7 @@ import {
 import { verifyVoterWithPlanApi } from "../utils/planApiVoter.js";
 import User from "../models/userModel.js";
 import Wallet from "../models/walletModel.js";
+import { calculateVerificationCost } from "../utils/billingUtils.js";
 
 // @desc    Verify Voter ID and return verification token
 // @route   POST /api/voter/verify
@@ -32,13 +33,26 @@ const verifyVoterCard = asyncHandler(async (req, res) => {
     throw new Error("Your Voter ID is already verified");
   }
 
-  // Check user's wallet balance
-  const wallet = await Wallet.getOrCreateWallet(req.user._id);
-  const VOTER_VERIFICATION_COST = 2; // 2 points (₹10 equivalent)
+  // Check user's wallet balance / free checks
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
 
-  if (wallet.balance < VOTER_VERIFICATION_COST) {
-    res.status(400);
-    throw new Error(`Insufficient wallet balance. Voter ID verification requires ${VOTER_VERIFICATION_COST} Points.`);
+  let voterVerificationCost = 0;
+  if (user.freeChecksRemaining === 0) {
+    if (user.plan === "free" || user.plan === "none") {
+      res.status(400);
+      throw new Error("Free checks exhausted. Please purchase a credit plan to verify identity.");
+    }
+
+    voterVerificationCost = await calculateVerificationCost(user, "voter");
+    const wallet = await Wallet.getOrCreateWallet(user._id);
+    if (wallet.balance < voterVerificationCost) {
+      res.status(400);
+      throw new Error(`Insufficient wallet balance. Voter ID verification requires ${voterVerificationCost} Points.`);
+    }
   }
 
   let verifyResult;
@@ -69,21 +83,29 @@ const verifyVoterCard = asyncHandler(async (req, res) => {
     district,
   } = verifyResult;
 
-  // Deduct from wallet on successful verification
-  wallet.balance -= VOTER_VERIFICATION_COST;
-  wallet.transactions.push({
-    type: "debit",
-    amount: VOTER_VERIFICATION_COST,
-    description: `Voter ID verification charges for ${voterId}`,
-  });
-  await wallet.save();
+  // Deduct from wallet/free checks on successful verification
+  if (user.freeChecksRemaining > 0) {
+    user.freeChecksRemaining -= 1;
+    await user.save();
+    const wallet = await Wallet.getOrCreateWallet(user._id);
+    wallet.transactions.push({
+      type: "debit",
+      amount: 0,
+      description: `Free Identity Check (Remaining: ${user.freeChecksRemaining})`,
+    });
+    await wallet.save();
+  } else {
+    const wallet = await Wallet.getOrCreateWallet(user._id);
+    wallet.balance -= voterVerificationCost;
+    wallet.transactions.push({
+      type: "debit",
+      amount: voterVerificationCost,
+      description: `Voter ID verification charges for ${voterId} (${voterVerificationCost} Points)`,
+    });
+    await wallet.save();
+  }
 
   // Update user's KYC fields
-  const user = await User.findById(req.user._id);
-  if (!user) {
-    res.status(404);
-    throw new Error("User not found");
-  }
 
   user.voterKyc = {
     status: "verified",

@@ -119,6 +119,14 @@ const userSchema = mongoose.Schema(
       district: { type: String, default: "" },
       verifiedAt: { type: Date, default: null },
     },
+    plan: {
+      type: String,
+      default: "free",
+    },
+    freeChecksRemaining: {
+      type: Number,
+      default: 4,
+    },
   },
   {
     timestamps: true,

@@ -5,6 +5,7 @@ import SuccessfulPetition from "../models/successfulPetitionModel.js";
 import Wallet from "../models/walletModel.js";
 import Crowdfunding from "../models/crowdfundingModel.js";
 import generateUserToken from "../utils/generateToken.js";
+import Plan from "../models/planModel.js";
 
 const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;
 
@@ -85,23 +86,24 @@ export const adminLogout = (req, res) => {
 //get all users info
 export const getUsers = async (req, res) => {
   try {
-    console.log("🔍 Fetching users...");
-    const users = await User.find({}, "name email mobileNumber createdAt isSuspended"); // Select name, email, mobileNumber, createdAt, and isSuspended
+    console.log("🔍 Fetching users with billing data...");
+    const users = await User.find({}, "name email mobileNumber createdAt isSuspended plan freeChecksRemaining");
     console.log(`👥 Found users: ${users.length}`);
-    console.log(
-      "📅 Sample user with dates:",
-      JSON.stringify(
-        {
-          name: users[0]?.name,
-          email: users[0]?.email,
-          createdAt: users[0]?.createdAt,
-          createdAtType: typeof users[0]?.createdAt,
-        },
-        null,
-        2
-      )
-    );
-    res.json(users);
+
+    // Fetch wallet balances for all users in one query
+    const wallets = await Wallet.find({ userId: { $in: users.map(u => u._id) } });
+    const walletMap = {};
+    wallets.forEach(w => {
+      walletMap[w.userId.toString()] = w.balance;
+    });
+
+    const usersWithWallet = users.map(user => {
+      const userObj = user.toObject();
+      userObj.points = walletMap[user._id.toString()] || 0;
+      return userObj;
+    });
+
+    res.json(usersWithWallet);
   } catch (error) {
     console.error("❌ Error fetching users:", error);
     res.status(500).json({ message: error.message });
@@ -759,6 +761,80 @@ export const loginAsUser = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in loginAsUser:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Update user plan, free checks, and wallet points
+// @route   PUT /api/admin/customers/:id/plan
+// @access  Private/Admin
+export const updateUserPlan = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { plan, freeChecksRemaining, points } = req.body;
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    if (plan !== undefined) {
+      const activePlans = await Plan.find({});
+      const allowedPlans = ["free", ...activePlans.map(p => p.key)];
+      if (!allowedPlans.includes(plan)) {
+        return res.status(400).json({ success: false, message: "Invalid plan tier" });
+      }
+      user.plan = plan;
+    }
+
+    if (freeChecksRemaining !== undefined) {
+      const val = parseInt(freeChecksRemaining);
+      if (isNaN(val) || val < 0) {
+        return res.status(400).json({ success: false, message: "Invalid free checks count" });
+      }
+      user.freeChecksRemaining = val;
+    }
+
+    await user.save();
+
+    // If points are provided, update their wallet
+    let walletBalance = 0;
+    if (points !== undefined) {
+      const ptsVal = parseFloat(points);
+      if (isNaN(ptsVal) || ptsVal < 0) {
+        return res.status(400).json({ success: false, message: "Invalid points amount" });
+      }
+      const wallet = await Wallet.getOrCreateWallet(user._id);
+      const diff = ptsVal - wallet.balance;
+      if (diff !== 0) {
+        wallet.balance = ptsVal;
+        wallet.transactions.push({
+          type: diff > 0 ? "credit" : "debit",
+          amount: Math.abs(diff),
+          description: `Manual adjustment by administrator`,
+        });
+        await wallet.save();
+      }
+      walletBalance = wallet.balance;
+    } else {
+      const wallet = await Wallet.findOne({ userId: user._id });
+      walletBalance = wallet ? wallet.balance : 0;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "User plan and points updated successfully",
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        plan: user.plan,
+        freeChecksRemaining: user.freeChecksRemaining,
+        points: walletBalance,
+      },
+    });
+  } catch (error) {
+    console.error("Error updating user plan:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

@@ -1,6 +1,7 @@
 import WalletRequest from "../models/walletRequestModel.js";
 import Wallet from "../models/walletModel.js";
 import User from "../models/userModel.js";
+import { getPointsFromAmount, getTierFromAmount } from "../utils/billingUtils.js";
 
 // Create a new wallet recharge request
 export const createWalletRequest = async (req, res) => {
@@ -12,7 +13,7 @@ export const createWalletRequest = async (req, res) => {
             return res.status(400).json({ message: "Invalid amount" });
         }
 
-        const points = amount / 5;
+        const points = await getPointsFromAmount(amount);
         const referenceId = `WLT-${userId}-${Date.now()}`;
 
         const newRequest = await WalletRequest.create({
@@ -116,6 +117,16 @@ export const approveWalletRequest = async (req, res) => {
         });
 
         await wallet.save();
+
+        // Update user plan tier if applicable
+        const user = await User.findById(request.userId);
+        if (user) {
+            const newTier = await getTierFromAmount(request.amount);
+            if (newTier !== "free") {
+                user.plan = newTier;
+                await user.save();
+            }
+        }
 
         // Update request status
         request.status = "approved";

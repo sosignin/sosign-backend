@@ -1,6 +1,7 @@
 import asyncHandler from "express-async-handler";
 import Petition from "../models/petitionModel.js";
 import User from "../models/userModel.js";
+import Wallet from "../models/walletModel.js";
 import SuccessfulPetition from "../models/successfulPetitionModel.js";
 import cloudinary from "../config/cloudinary.js";
 import { sendPetitionNotificationEmails } from "../config/emailConfig.js";
@@ -131,6 +132,30 @@ const createPetition = asyncHandler(async (req, res) => {
       res.status(404);
       throw new Error("User not found");
     }
+
+    // Plan and point checks for petition creation
+    if (user.plan === "free" || user.plan === "none" || !user.plan) {
+      const petitionCount = await Petition.countDocuments({ userId: user._id });
+      if (petitionCount >= 1) {
+        res.status(400);
+        throw new Error("Users on the free plan can only create 1 petition. Please upgrade to a paid tier (Bronze, Silver, Gold, or Platinum) to create more.");
+      }
+    } else {
+      // Paid plan requires 5 points to create a petition
+      const wallet = await Wallet.getOrCreateWallet(user._id);
+      if (wallet.balance < 5) {
+        res.status(400);
+        throw new Error("Insufficient wallet balance. Creating a petition requires 5 points.");
+      }
+      wallet.balance -= 5;
+      wallet.transactions.push({
+        type: "debit",
+        amount: 5,
+        description: "Petition creation charges",
+      });
+      await wallet.save();
+    }
+
     userId = req.user._id;
     console.log("Using authenticated user ID:", userId); // Debugging line
   } else {

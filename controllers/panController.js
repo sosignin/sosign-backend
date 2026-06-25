@@ -7,6 +7,7 @@ import {
 import { verifyPanWithPlanApi } from "../utils/planApiPan.js";
 import User from "../models/userModel.js";
 import Wallet from "../models/walletModel.js";
+import { calculateVerificationCost } from "../utils/billingUtils.js";
 
 // @desc    Verify PAN Card and return verification token
 // @route   POST /api/pan/verify
@@ -33,13 +34,26 @@ const verifyPanCard = asyncHandler(async (req, res) => {
     throw new Error("Your PAN Card is already verified");
   }
 
-  // Check user's wallet balance
-  const wallet = await Wallet.getOrCreateWallet(req.user._id);
-  const PAN_VERIFICATION_COST = 2; // 2 points (₹10 equivalent)
+  // Check user's wallet balance / free checks
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
 
-  if (wallet.balance < PAN_VERIFICATION_COST) {
-    res.status(400);
-    throw new Error(`Insufficient wallet balance. PAN verification requires ${PAN_VERIFICATION_COST} Points.`);
+  let panVerificationCost = 0;
+  if (user.freeChecksRemaining === 0) {
+    if (user.plan === "free" || user.plan === "none") {
+      res.status(400);
+      throw new Error("Free checks exhausted. Please purchase a credit plan to verify identity.");
+    }
+
+    panVerificationCost = await calculateVerificationCost(user, "pan");
+    const wallet = await Wallet.getOrCreateWallet(user._id);
+    if (wallet.balance < panVerificationCost) {
+      res.status(400);
+      throw new Error(`Insufficient wallet balance. PAN verification requires ${panVerificationCost} Points.`);
+    }
   }
 
   let verifyResult;
@@ -61,22 +75,29 @@ const verifyPanCard = asyncHandler(async (req, res) => {
 
   const { registeredName, fatherName, panType } = verifyResult;
 
-  // Deduct from wallet on successful verification
-  wallet.balance -= PAN_VERIFICATION_COST;
-  wallet.transactions.push({
-    type: "debit",
-    amount: PAN_VERIFICATION_COST,
-    description: `PAN verification charges for ${panNumber}`,
-  });
-  await wallet.save();
-
-  // Update user's KYC fields
-  const user = await User.findById(req.user._id);
-  if (!user) {
-    res.status(404);
-    throw new Error("User not found");
+  // Deduct from wallet/free checks on successful verification
+  if (user.freeChecksRemaining > 0) {
+    user.freeChecksRemaining -= 1;
+    await user.save();
+    const wallet = await Wallet.getOrCreateWallet(user._id);
+    wallet.transactions.push({
+      type: "debit",
+      amount: 0,
+      description: `Free Identity Check (Remaining: ${user.freeChecksRemaining})`,
+    });
+    await wallet.save();
+  } else {
+    const wallet = await Wallet.getOrCreateWallet(user._id);
+    wallet.balance -= panVerificationCost;
+    wallet.transactions.push({
+      type: "debit",
+      amount: panVerificationCost,
+      description: `PAN verification charges for ${panNumber} (${panVerificationCost} Points)`,
+    });
+    await wallet.save();
   }
 
+  // Update user's KYC fields
   user.panKyc = {
     status: "verified",
     panNumber,
