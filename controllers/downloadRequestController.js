@@ -7,6 +7,12 @@ import Comment from "../models/commentModel.js";
 // @route   POST /api/download-requests
 // @access  Private
 const createDownloadRequest = asyncHandler(async (req, res) => {
+    // Check if user is on the platinum plan
+    if (req.user?.plan !== "platinum") {
+        res.status(403);
+        throw new Error("Only users on the Platinum plan can request petition data downloads.");
+    }
+
     const { petitionId, reason, requestedFields } = req.body;
 
     if (!petitionId || !reason) {
