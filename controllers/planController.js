@@ -21,7 +21,7 @@ export const adminGetPlans = asyncHandler(async (req, res) => {
 // @route   POST /api/admin/plans
 // @access  Private/Admin
 export const adminCreatePlan = asyncHandler(async (req, res) => {
-    const { key, name, price, points, bestFor, deductions, isActive } = req.body;
+    const { key, name, price, mrpPrice, points, bestFor, deductions, isActive } = req.body;
 
     if (!key || !name || price === undefined || points === undefined || !deductions) {
         res.status(400);
@@ -38,8 +38,10 @@ export const adminCreatePlan = asyncHandler(async (req, res) => {
         key: key.toLowerCase().trim(),
         name,
         price,
+        mrpPrice: mrpPrice !== undefined ? mrpPrice : price,
         points,
         bestFor,
+        isCustom: req.body.isCustom !== undefined ? req.body.isCustom : false,
         deductions,
         isActive: isActive !== undefined ? isActive : true,
     });
@@ -56,7 +58,7 @@ export const adminCreatePlan = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 export const adminUpdatePlan = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { name, price, points, bestFor, deductions, isActive } = req.body;
+    const { name, price, mrpPrice, points, bestFor, deductions, isActive } = req.body;
 
     const plan = await Plan.findById(id);
     if (!plan) {
@@ -66,8 +68,10 @@ export const adminUpdatePlan = asyncHandler(async (req, res) => {
 
     if (name !== undefined) plan.name = name;
     if (price !== undefined) plan.price = price;
+    if (mrpPrice !== undefined) plan.mrpPrice = mrpPrice;
     if (points !== undefined) plan.points = points;
     if (bestFor !== undefined) plan.bestFor = bestFor;
+    if (req.body.isCustom !== undefined) plan.isCustom = req.body.isCustom;
     if (deductions !== undefined) {
         plan.deductions = {
             aadhaar: deductions.aadhaar !== undefined ? deductions.aadhaar : plan.deductions.aadhaar,
@@ -75,6 +79,9 @@ export const adminUpdatePlan = asyncHandler(async (req, res) => {
             voter: deductions.voter !== undefined ? deductions.voter : plan.deductions.voter,
             aadhaar_pan: deductions.aadhaar_pan !== undefined ? deductions.aadhaar_pan : plan.deductions.aadhaar_pan,
             aadhaar_voter: deductions.aadhaar_voter !== undefined ? deductions.aadhaar_voter : plan.deductions.aadhaar_voter,
+            sms_dm: deductions.sms_dm !== undefined ? deductions.sms_dm : plan.deductions.sms_dm,
+            email_dm: deductions.email_dm !== undefined ? deductions.email_dm : plan.deductions.email_dm,
+            whatsapp_dm: deductions.whatsapp_dm !== undefined ? deductions.whatsapp_dm : plan.deductions.whatsapp_dm,
         };
     }
     if (isActive !== undefined) plan.isActive = isActive;

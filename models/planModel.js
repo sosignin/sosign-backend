@@ -19,6 +19,11 @@ const planSchema = mongoose.Schema(
             required: true,
             min: 0,
         },
+        mrpPrice: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
         points: {
             type: Number,
             required: true,
@@ -27,6 +32,10 @@ const planSchema = mongoose.Schema(
         bestFor: {
             type: String,
             default: "",
+        },
+        isCustom: {
+            type: Boolean,
+            default: false,
         },
         deductions: {
             aadhaar: {
@@ -54,6 +63,24 @@ const planSchema = mongoose.Schema(
                 required: true,
                 min: 0,
             },
+            sms_dm: {
+                type: Number,
+                required: true,
+                min: 0,
+                default: 1.25,
+            },
+            email_dm: {
+                type: Number,
+                required: true,
+                min: 0,
+                default: 0.50,
+            },
+            whatsapp_dm: {
+                type: Number,
+                required: true,
+                min: 0,
+                default: 1.50,
+            },
         },
         isActive: {
             type: Boolean,
@@ -75,14 +102,19 @@ planSchema.statics.seedDefaults = async function () {
                 key: "free",
                 name: "Free Plan",
                 price: 0,
-                points: 0,
+                mrpPrice: 0,
+                points: 20,
                 bestFor: "Trial for new users",
+                isCustom: false,
                 deductions: {
-                    aadhaar: 0,
-                    pan: 0,
-                    voter: 0,
-                    aadhaar_pan: 0,
-                    aadhaar_voter: 0,
+                    aadhaar: 8,
+                    pan: 5,
+                    voter: 5,
+                    aadhaar_pan: 10,
+                    aadhaar_voter: 10,
+                    sms_dm: 1.25,
+                    email_dm: 0.50,
+                    whatsapp_dm: 1.50,
                 },
                 isActive: true,
             },
@@ -90,14 +122,19 @@ planSchema.statics.seedDefaults = async function () {
                 key: "bronze",
                 name: "Bronze Plan",
                 price: 999,
+                mrpPrice: 1999,
                 points: 200,
                 bestFor: "Individuals & Startups",
+                isCustom: false,
                 deductions: {
                     aadhaar: 8,
                     pan: 5,
                     voter: 5,
                     aadhaar_pan: 10,
                     aadhaar_voter: 10,
+                    sms_dm: 1.25,
+                    email_dm: 0.50,
+                    whatsapp_dm: 1.50,
                 },
                 isActive: true,
             },
@@ -105,14 +142,19 @@ planSchema.statics.seedDefaults = async function () {
                 key: "silver",
                 name: "Silver Plan",
                 price: 49000,
-                points: 9800,
+                mrpPrice: 49000,
+                points: 10889,
                 bestFor: "Growing Businesses",
+                isCustom: false,
                 deductions: {
-                    aadhaar: 5,
-                    pan: 4,
-                    voter: 4,
-                    aadhaar_pan: 7,
-                    aadhaar_voter: 7,
+                    aadhaar: 8,
+                    pan: 5,
+                    voter: 5,
+                    aadhaar_pan: 10,
+                    aadhaar_voter: 10,
+                    sms_dm: 1.25,
+                    email_dm: 0.50,
+                    whatsapp_dm: 1.50,
                 },
                 isActive: true,
             },
@@ -120,14 +162,19 @@ planSchema.statics.seedDefaults = async function () {
                 key: "gold",
                 name: "Gold Plan",
                 price: 99000,
-                points: 19800,
+                mrpPrice: 99000,
+                points: 23294,
                 bestFor: "High-Volume Businesses",
+                isCustom: false,
                 deductions: {
-                    aadhaar: 3,
-                    pan: 3,
-                    voter: 3,
-                    aadhaar_pan: 5,
-                    aadhaar_voter: 5,
+                    aadhaar: 8,
+                    pan: 5,
+                    voter: 5,
+                    aadhaar_pan: 10,
+                    aadhaar_voter: 10,
+                    sms_dm: 1.25,
+                    email_dm: 0.50,
+                    whatsapp_dm: 1.50,
                 },
                 isActive: true,
             },
@@ -135,20 +182,105 @@ planSchema.statics.seedDefaults = async function () {
                 key: "platinum",
                 name: "Platinum Plan",
                 price: 499999,
+                mrpPrice: 499999,
                 points: 100000,
                 bestFor: "Enterprise Organizations",
+                isCustom: true,
                 deductions: {
-                    aadhaar: 2.5,
-                    pan: 2,
-                    voter: 2,
-                    aadhaar_pan: 4,
-                    aadhaar_voter: 4,
+                    aadhaar: 8,
+                    pan: 5,
+                    voter: 5,
+                    aadhaar_pan: 10,
+                    aadhaar_voter: 10,
+                    sms_dm: 1.25,
+                    email_dm: 0.50,
+                    whatsapp_dm: 1.50,
                 },
                 isActive: true,
             },
         ];
         await this.create(defaultPlans);
         console.log("🚀 Default plan packages seeded successfully!");
+    } else {
+        // Backfill new fields for existing plans
+        console.log("🔄 Checking and backfilling new plan fields...");
+        const plans = await this.find({});
+        for (const plan of plans) {
+            let updated = false;
+            if (!plan.deductions) plan.deductions = {};
+            
+            // Force all plans to have uniform point deductions
+            const standardDeductions = {
+                aadhaar: 8,
+                pan: 5,
+                voter: 5,
+                aadhaar_pan: 10,
+                aadhaar_voter: 10,
+                sms_dm: 1.25,
+                email_dm: 0.50,
+                whatsapp_dm: 1.50,
+            };
+
+            for (const key of Object.keys(standardDeductions)) {
+                if (plan.deductions[key] !== standardDeductions[key]) {
+                    plan.deductions[key] = standardDeductions[key];
+                    updated = true;
+                }
+            }
+
+            if (plan.key === "free") {
+                if (plan.points !== 20) {
+                    plan.points = 20;
+                    updated = true;
+                }
+            }
+            if (plan.key === "bronze") {
+                if (plan.price !== 999) {
+                    plan.price = 999;
+                    updated = true;
+                }
+                if (plan.points !== 200) {
+                    plan.points = 200;
+                    updated = true;
+                }
+            }
+            if (plan.key === "silver") {
+                if (plan.points !== 10889) {
+                    plan.points = 10889;
+                    updated = true;
+                }
+            }
+            if (plan.key === "gold") {
+                if (plan.points !== 23294) {
+                    plan.points = 23294;
+                    updated = true;
+                }
+            }
+            if (plan.key === "platinum") {
+                if (!plan.isCustom) {
+                    plan.isCustom = true;
+                    updated = true;
+                }
+            }
+            if (plan.isCustom === undefined) {
+                plan.isCustom = plan.key === "platinum" ? true : false;
+                updated = true;
+            }
+            if (plan.mrpPrice === undefined) {
+                plan.mrpPrice = plan.key === "bronze" ? 1999 : plan.price;
+                updated = true;
+            }
+            if (plan.key === "bronze" && plan.mrpPrice !== 1999) {
+                plan.mrpPrice = 1999;
+                updated = true;
+            }
+
+            if (updated) {
+                plan.markModified("deductions");
+                await plan.save();
+                console.log(`Updated plan parameters for: ${plan.key}`);
+            }
+        }
     }
 };
 
