@@ -29,6 +29,7 @@ const createPetition = asyncHandler(async (req, res) => {
   const {
     title,
     decisionMakers,
+    requestedSigners,
     country,
     petitionDetails,
     petitionStarter,
@@ -40,6 +41,17 @@ const createPetition = asyncHandler(async (req, res) => {
     panVerificationToken,
     voterVerificationToken,
   } = req.body;
+
+  // Parse requestedSigners if it's a string (from FormData)
+  let parsedRequestedSigners = requestedSigners || [];
+  if (typeof requestedSigners === "string") {
+    try {
+      parsedRequestedSigners = JSON.parse(requestedSigners);
+    } catch (error) {
+      res.status(400);
+      throw new Error("Invalid requested signers data format");
+    }
+  }
 
   // Parse decisionMakers if it's a string (from FormData)
   let parsedDecisionMakers = decisionMakers;
@@ -367,6 +379,7 @@ const createPetition = asyncHandler(async (req, res) => {
   const petition = await Petition.create({
     title,
     decisionMakers: parsedDecisionMakers || [],
+    requestedSigners: parsedRequestedSigners || [],
     country,
     categories: parsedCategories,
     petitionDetails: {
@@ -650,9 +663,86 @@ const getPetitionById = asyncHandler(async (req, res) => {
       }
     ]);
 
+    // Find matching requested signers status
+    let requestedSignersStatus = [];
+    if (petition.requestedSigners && petition.requestedSigners.length > 0) {
+      const fullPetition = await Petition.findById(petition._id).select('signatures.user');
+      const signerUserIds = fullPetition?.signatures?.map(s => s.user) || [];
+
+      if (signerUserIds.length > 0) {
+        const emailList = petition.requestedSigners
+          .map(rs => rs.email?.trim().toLowerCase())
+          .filter(Boolean);
+        const nameList = petition.requestedSigners
+          .map(rs => rs.name?.trim().toLowerCase())
+          .filter(Boolean);
+
+        const matchQuery = {
+          _id: { $in: signerUserIds },
+          $or: []
+        };
+
+        if (emailList.length > 0) {
+          matchQuery.$or.push({ email: { $in: emailList } });
+        }
+        if (nameList.length > 0) {
+          const nameRegexes = nameList.map(name => new RegExp(`^${name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i'));
+          matchQuery.$or.push({
+            "aadhaarKyc.status": "verified",
+            "aadhaarKyc.name": { $in: nameRegexes }
+          });
+        }
+
+        let matchingUsers = [];
+        if (matchQuery.$or.length > 0) {
+          matchingUsers = await User.find(matchQuery).select("name email profilePicture designation uniqueCode aadhaarKyc").lean();
+        }
+
+        requestedSignersStatus = petition.requestedSigners.map(rs => {
+          const rsNameLower = rs.name.trim().toLowerCase();
+          const rsEmailLower = rs.email?.trim().toLowerCase();
+
+          const matchedUser = matchingUsers.find(u => {
+            if (rsEmailLower && u.email.toLowerCase() === rsEmailLower) {
+              return true;
+            }
+            if (u.aadhaarKyc?.status === "verified" && u.aadhaarKyc.name) {
+              return u.aadhaarKyc.name.trim().toLowerCase() === rsNameLower;
+            }
+            return false;
+          });
+
+          return {
+            _id: rs._id,
+            name: rs.name,
+            email: rs.email,
+            designation: rs.designation,
+            hasSigned: !!matchedUser,
+            signedBy: matchedUser ? {
+              _id: matchedUser._id,
+              name: matchedUser.name,
+              designation: matchedUser.designation,
+              profilePicture: matchedUser.profilePicture,
+              uniqueCode: matchedUser.uniqueCode,
+            } : null
+          };
+        });
+      } else {
+        requestedSignersStatus = petition.requestedSigners.map(rs => ({
+          _id: rs._id,
+          name: rs.name,
+          email: rs.email,
+          designation: rs.designation,
+          hasSigned: false,
+          signedBy: null
+        }));
+      }
+    }
+
     // Convert Mongoose document to plain object to add custom field
     const petitionObj = petition.toObject();
     petitionObj.notableSigners = notableSigners;
+    petitionObj.requestedSignersStatus = requestedSignersStatus;
 
     res.status(200).json(petitionObj);
   } else {
@@ -681,6 +771,7 @@ const updatePetition = asyncHandler(async (req, res) => {
   const {
     title,
     decisionMakers,
+    requestedSigners,
     country,
     petitionDetails,
     constituencySettings,
@@ -690,6 +781,7 @@ const updatePetition = asyncHandler(async (req, res) => {
   // Update only the fields that are provided
   if (title !== undefined) petition.title = title;
   if (decisionMakers !== undefined) petition.decisionMakers = decisionMakers;
+  if (requestedSigners !== undefined) petition.requestedSigners = requestedSigners;
   if (country !== undefined) petition.country = country;
   if (petitionDetails !== undefined) {
     petition.petitionDetails = {
@@ -727,6 +819,7 @@ const updatePetition = asyncHandler(async (req, res) => {
     _id: updatedPetition._id,
     title: updatedPetition.title,
     decisionMakers: updatedPetition.decisionMakers,
+    requestedSigners: updatedPetition.requestedSigners,
     country: updatedPetition.country,
     petitionDetails: updatedPetition.petitionDetails,
     petitionStarter: updatedPetition.petitionStarter,

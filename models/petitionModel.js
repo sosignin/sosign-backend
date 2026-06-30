@@ -31,6 +31,13 @@ const petitionSchema = mongoose.Schema(
         phone: { type: String },
       },
     ],
+    requestedSigners: [
+      {
+        name: { type: String, required: true },
+        email: { type: String },
+        designation: { type: String }, // e.g. Politician, Celebrity
+      },
+    ],
     country: {
       type: String,
       required: true,
