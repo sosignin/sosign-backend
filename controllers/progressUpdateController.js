@@ -1,6 +1,7 @@
 import asyncHandler from "express-async-handler";
 import ProgressUpdate from "../models/progressUpdateModel.js";
 import Petition from "../models/petitionModel.js";
+import { checkAbusiveContent } from "../utils/abusiveWords.js";
 
 // @desc    Create a progress update
 // @route   POST /api/progress-updates/:petitionId
@@ -8,6 +9,14 @@ import Petition from "../models/petitionModel.js";
 export const createProgressUpdate = asyncHandler(async (req, res) => {
   const { petitionId } = req.params;
   const { title, content, updateType, videoUrl, milestoneLabel, milestoneStatus } = req.body;
+
+  // Check for abusive content
+  const fullText = `${title || ""} ${content || ""}`;
+  const abusiveCheck = checkAbusiveContent(fullText);
+  if (abusiveCheck.hasAbusive) {
+    res.status(400);
+    throw new Error(abusiveCheck.warning);
+  }
 
   const petition = await Petition.findById(petitionId);
 

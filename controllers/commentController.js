@@ -1,6 +1,7 @@
 import asyncHandler from "express-async-handler";
 import Comment from "../models/commentModel.js";
 import Petition from "../models/petitionModel.js";
+import { checkAbusiveContent } from "../utils/abusiveWords.js";
 
 // @desc    Create a new comment
 // @route   POST /api/comments
@@ -12,6 +13,13 @@ const createComment = asyncHandler(async (req, res) => {
   if (!petitionId || !content) {
     res.status(400);
     throw new Error("Please provide petition ID and comment content");
+  }
+
+  // Check for abusive content
+  const abusiveCheck = checkAbusiveContent(content);
+  if (abusiveCheck.hasAbusive) {
+    res.status(400);
+    throw new Error(abusiveCheck.warning);
   }
 
   // Check if petition exists
@@ -226,6 +234,13 @@ const addReply = asyncHandler(async (req, res) => {
     throw new Error("Please provide reply content");
   }
 
+  // Check for abusive content
+  const abusiveCheck = checkAbusiveContent(content);
+  if (abusiveCheck.hasAbusive) {
+    res.status(400);
+    throw new Error(abusiveCheck.warning);
+  }
+
   const comment = await Comment.findById(req.params.id);
 
   if (!comment) {
@@ -281,6 +296,13 @@ const updateReply = asyncHandler(async (req, res) => {
   if (!content) {
     res.status(400);
     throw new Error("Please provide reply content");
+  }
+
+  // Check for abusive content
+  const abusiveCheck = checkAbusiveContent(content);
+  if (abusiveCheck.hasAbusive) {
+    res.status(400);
+    throw new Error(abusiveCheck.warning);
   }
 
   const comment = await Comment.findById(commentId);

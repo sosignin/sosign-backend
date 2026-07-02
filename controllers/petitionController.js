@@ -21,6 +21,7 @@ import {
   hashVoterNumber,
   verifyVoterVerificationToken,
 } from "../utils/voterVerificationUtils.js";
+import { checkAbusiveContent } from "../utils/abusiveWords.js";
 
 // @desc    Create a new petition
 // @route   POST /api/petitions
@@ -132,6 +133,20 @@ const createPetition = asyncHandler(async (req, res) => {
   ) {
     res.status(400);
     throw new Error("Please provide all required fields");
+  }
+
+  // Abusive words validation
+  const fullTextToCheck = [
+    title,
+    parsedPetitionDetails?.problem,
+    parsedPetitionDetails?.solution,
+    parsedPetitionStarter?.comment,
+  ].filter(Boolean).join(" ");
+
+  const abusiveCheck = checkAbusiveContent(fullTextToCheck);
+  if (abusiveCheck.hasAbusive) {
+    res.status(400);
+    throw new Error(abusiveCheck.warning);
   }
 
   // Handle authentication - create temporary user if not authenticated
