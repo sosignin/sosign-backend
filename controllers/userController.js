@@ -1,6 +1,7 @@
 import asyncHandler from "express-async-handler";
 import generateToken from "../utils/generateToken.js";
 import User from "../models/userModel.js";
+import Wallet from "../models/walletModel.js";
 import fetch from "node-fetch";
 
 // @desc    Auth user & get token
@@ -102,6 +103,7 @@ const registerUser = asyncHandler(async (req, res) => {
   });
 
   if (user) {
+    await Wallet.getOrCreateWallet(user._id);
     const token = generateToken(res, user._id);
 
     res.status(201).json({
@@ -301,6 +303,7 @@ const authGoogleUser = asyncHandler(async (req, res) => {
     });
 
     if (user) {
+      await Wallet.getOrCreateWallet(user._id);
       const token = generateToken(res, user._id);
       res.status(201).json({
         _id: user._id,

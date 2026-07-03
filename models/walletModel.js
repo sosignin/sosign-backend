@@ -44,8 +44,40 @@ const walletSchema = mongoose.Schema(
 // Create or get wallet for a user
 walletSchema.statics.getOrCreateWallet = async function (userId) {
     let wallet = await this.findOne({ userId });
+    const User = mongoose.model("User");
+    const user = await User.findById(userId);
+    const planKey = user?.plan || "free";
+
     if (!wallet) {
-        wallet = await this.create({ userId, balance: 0, transactions: [] });
+        let initialBalance = 0;
+        let initialTransactions = [];
+
+        if (planKey === "free" || planKey === "none") {
+            initialBalance = 20;
+            initialTransactions = [
+                {
+                    type: "credit",
+                    amount: 20,
+                    description: "Free Plan Welcome Bonus (20 Points)",
+                },
+            ];
+        }
+
+        wallet = await this.create({
+            userId,
+            balance: initialBalance,
+            transactions: initialTransactions,
+        });
+    } else if (wallet.balance === 0 && wallet.transactions.length === 0) {
+        if (planKey === "free" || planKey === "none") {
+            wallet.balance = 20;
+            wallet.transactions.push({
+                type: "credit",
+                amount: 20,
+                description: "Free Plan Welcome Bonus (20 Points)",
+            });
+            await wallet.save();
+        }
     }
     return wallet;
 };

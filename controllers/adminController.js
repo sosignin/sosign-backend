@@ -107,7 +107,8 @@ export const getUsers = async (req, res) => {
 
     const usersWithWallet = users.map(user => {
       const userObj = user.toObject();
-      userObj.points = walletMap[user._id.toString()] || 0;
+      const storedBal = walletMap[user._id.toString()];
+      userObj.points = storedBal !== undefined ? storedBal : ((user.plan === "free" || !user.plan) ? 20 : 0);
       return userObj;
     });
 
@@ -371,7 +372,7 @@ export const getWallets = async (req, res) => {
     // Fetch wallet for each user
     const userWallets = await Promise.all(
       users.map(async (user) => {
-        const wallet = await Wallet.findOne({ userId: user._id });
+        const wallet = await Wallet.getOrCreateWallet(user._id);
         return {
           _id: user._id,
           name: user.name,
