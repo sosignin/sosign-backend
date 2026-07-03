@@ -41,7 +41,11 @@ export const adminLogin = (req, res) => {
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // "none" for cross-origin in production
     });
 
-    return res.status(200).json({ message: "Admin logged in successfully" });
+    return res.status(200).json({
+      message: "Admin logged in successfully",
+      token,
+      admin: { email: ADMIN_EMAIL, role: "superadmin" },
+    });
   } else {
     return res.status(401).json({ message: "Invalid credentials" });
   }
@@ -49,7 +53,11 @@ export const adminLogin = (req, res) => {
 
 // Get current admin
 export const getCurrentAdmin = (req, res) => {
-  const token = req.cookies.adminToken;
+  let token = req.cookies?.adminToken;
+  if (!token && req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
+    token = req.headers.authorization.split(" ")[1];
+  }
+
   if (!token) return res.status(401).json({ message: "Not authenticated" });
 
   try {

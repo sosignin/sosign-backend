@@ -1,12 +1,14 @@
 import jwt from "jsonwebtoken";
 
 export const adminAuth = (req, res, next) => {
-  console.log("Admin auth middleware called");
-  console.log("Cookies:", req.cookies);
-  const token = req.cookies.adminToken;
+  let token = req.cookies?.adminToken;
+
+  if (!token && req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
+    token = req.headers.authorization.split(" ")[1];
+  }
 
   if (!token) {
-    console.log("No token found");
+    console.log("No token found in cookies or Authorization header");
     return res.status(401).json({ message: "Not authenticated" });
   }
 

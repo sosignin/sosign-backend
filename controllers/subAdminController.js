@@ -44,7 +44,16 @@ export const subAdminLogin = async (req, res) => {
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     });
 
-    return res.status(200).json({ message: "Sub-admin logged in successfully" });
+    return res.status(200).json({
+      message: "Sub-admin logged in successfully",
+      token,
+      admin: {
+        email: subAdmin.email,
+        name: subAdmin.name,
+        role: "subadmin",
+        permissions: subAdmin.permissions,
+      },
+    });
   } catch (error) {
     console.error("Sub-admin login error:", error);
     return res.status(500).json({ message: "Server error during login" });
