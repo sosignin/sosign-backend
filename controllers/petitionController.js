@@ -206,10 +206,14 @@ const createPetition = asyncHandler(async (req, res) => {
   console.log("Derived userId for petition creation:", userId); // Debugging line
   console.log("parsedPetitionStarter before creation:", parsedPetitionStarter); // Debugging line
 
-  // Enforce identity verification for petition creator (Aadhaar, PAN Card, and Voter ID).
-  const isAadhaarVerified = req.user?.aadhaarKyc?.status === "verified";
-  const isPanVerified = req.user?.panKyc?.status === "verified";
-  const isVoterVerified = req.user?.voterKyc?.status === "verified";
+  // Enforce identity verification for petition creator (Aadhaar, PAN Card, or Voter ID).
+  const isAadhaarAlreadyVerified = req.user?.aadhaarKyc?.status === "verified";
+  const isPanAlreadyVerified = req.user?.panKyc?.status === "verified";
+  const isVoterAlreadyVerified = req.user?.voterKyc?.status === "verified";
+
+  let isAadhaarVerified = isAadhaarAlreadyVerified;
+  let isPanVerified = isPanAlreadyVerified;
+  let isVoterVerified = isVoterAlreadyVerified;
 
   const starterAadhaarRaw =
     parsedPetitionStarter?.aadharNumber || parsedPetitionStarter?.aadhaarNumber;
@@ -219,160 +223,79 @@ const createPetition = asyncHandler(async (req, res) => {
   const starterVoterRaw = parsedPetitionStarter?.voterNumber;
   const normalizedStarterVoter = starterVoterRaw ? starterVoterRaw.trim().toUpperCase() : "";
 
-  // 1. Aadhaar verification check
-  if (!isAadhaarVerified) {
-    const aadhaarToken = (
-      aadhaarVerificationToken ||
-      aadharVerificationToken ||
-      ""
-    ).trim();
+  const aadhaarToken = (aadhaarVerificationToken || aadharVerificationToken || "").trim();
+  const panToken = (panVerificationToken || "").trim();
+  const voterToken = (voterVerificationToken || "").trim();
 
-    if (!aadhaarToken) {
-      res.status(400);
-      throw new Error(
-        "Aadhaar OTP verification is required before creating a petition"
-      );
-    }
-
-    if (!isValidAadhaarNumber(normalizedStarterAadhaar)) {
-      res.status(400);
-      throw new Error("Please provide a valid 12-digit Aadhar number");
-    }
-
-    let decodedVerificationToken;
-    try {
-      decodedVerificationToken = verifyAadhaarVerificationToken(aadhaarToken);
-    } catch (error) {
-      res.status(401);
-      throw new Error(
-        "Invalid or expired Aadhaar verification. Please verify again."
-      );
-    }
-
-    if (decodedVerificationToken.userId !== userId.toString()) {
-      res.status(403);
-      throw new Error("Aadhaar verification token does not belong to this user");
-    }
-
-    if (
-      decodedVerificationToken.aadhaarHash !==
-      hashAadhaarNumber(normalizedStarterAadhaar)
-    ) {
-      res.status(400);
-      throw new Error(
-        "Verified Aadhaar does not match the Aadhaar number entered in the form"
-      );
-    }
-  } else {
-    // If user is already verified via Aadhaar
-    if (!isValidAadhaarNumber(normalizedStarterAadhaar)) {
-      parsedPetitionStarter.aadharNumber = req.user.aadhaarKyc.maskedAadhaar || normalizedStarterAadhaar;
+  // Validate Aadhaar Token if passed
+  if (!isAadhaarVerified && aadhaarToken) {
+    if (isValidAadhaarNumber(normalizedStarterAadhaar)) {
+      try {
+        const decodedToken = verifyAadhaarVerificationToken(aadhaarToken);
+        if (
+          decodedToken.userId === userId.toString() &&
+          decodedToken.aadhaarHash === hashAadhaarNumber(normalizedStarterAadhaar)
+        ) {
+          isAadhaarVerified = true;
+        }
+      } catch (error) {
+        // Token invalid or expired
+      }
     }
   }
 
-  // 2. PAN verification check
-  if (!isPanVerified) {
-    const panToken = (panVerificationToken || "").trim();
-
-    if (!panToken) {
-      res.status(400);
-      throw new Error(
-        "PAN Card verification is required before creating a petition"
-      );
-    }
-
-    if (!isValidPanNumber(normalizedStarterPan)) {
-      res.status(400);
-      throw new Error("Please provide a valid 10-digit PAN card number");
-    }
-
-    let decodedPanToken;
-    try {
-      decodedPanToken = verifyPanVerificationToken(panToken);
-    } catch (error) {
-      res.status(401);
-      throw new Error(
-        "Invalid or expired PAN verification. Please verify again."
-      );
-    }
-
-    if (decodedPanToken.userId !== userId.toString()) {
-      res.status(403);
-      throw new Error("PAN verification token does not belong to this user");
-    }
-
-    if (
-      decodedPanToken.panHash !==
-      hashPanNumber(normalizedStarterPan)
-    ) {
-      res.status(400);
-      throw new Error(
-        "Verified PAN does not match the PAN number entered in the form"
-      );
-    }
-  } else {
-    // If user is already verified via PAN
-    if (!isValidPanNumber(normalizedStarterPan)) {
-      parsedPetitionStarter.panNumber = req.user.panKyc.panNumber || normalizedStarterPan;
+  // Validate PAN Token if passed
+  if (!isPanVerified && panToken) {
+    if (isValidPanNumber(normalizedStarterPan)) {
+      try {
+        const decodedToken = verifyPanVerificationToken(panToken);
+        if (
+          decodedToken.userId === userId.toString() &&
+          decodedToken.panHash === hashPanNumber(normalizedStarterPan)
+        ) {
+          isPanVerified = true;
+        }
+      } catch (error) {
+        // Token invalid or expired
+      }
     }
   }
 
-  // 3. Voter ID verification check
-  if (!isVoterVerified) {
-    const voterToken = (voterVerificationToken || "").trim();
+  // Validate Voter Token if passed
+  if (!isVoterVerified && voterToken) {
+    if (isValidVoterNumber(normalizedStarterVoter)) {
+      try {
+        const decodedToken = verifyVoterVerificationToken(voterToken);
+        if (
+          decodedToken.userId === userId.toString() &&
+          decodedToken.voterHash === hashVoterNumber(normalizedStarterVoter)
+        ) {
+          isVoterVerified = true;
+        }
+      } catch (error) {
+        // Token invalid or expired
+      }
+    }
+  }
 
-    if (!voterToken) {
-      res.status(400);
-      throw new Error(
-        "Voter ID verification is required before creating a petition"
-      );
-    }
+  const hasAtLeastOneVerification = isAadhaarVerified || isPanVerified || isVoterVerified;
 
-    if (!isValidVoterNumber(normalizedStarterVoter)) {
-      res.status(400);
-      throw new Error("Please provide a valid 10-18 character Voter ID");
-    }
-
-    let decodedVoterToken;
-    try {
-      decodedVoterToken = verifyVoterVerificationToken(voterToken);
-    } catch (error) {
-      res.status(401);
-      throw new Error(
-        "Invalid or expired Voter ID verification. Please verify again."
-      );
-    }
-
-    if (decodedVoterToken.userId !== userId.toString()) {
-      res.status(403);
-      throw new Error("Voter ID verification token does not belong to this user");
-    }
-
-    if (
-      decodedVoterToken.voterHash !==
-      hashVoterNumber(normalizedStarterVoter)
-    ) {
-      res.status(400);
-      throw new Error(
-        "Verified Voter ID does not match the Voter ID entered in the form"
-      );
-    }
-  } else {
-    // If user is already verified via Voter ID
-    if (!isValidVoterNumber(normalizedStarterVoter)) {
-      parsedPetitionStarter.voterNumber = req.user.voterKyc.voterId || normalizedStarterVoter;
-    }
+  if (!hasAtLeastOneVerification) {
+    res.status(400);
+    throw new Error(
+      "Identity verification required: Please complete Aadhaar KYC, PAN Card, or Voter ID verification before creating a petition."
+    );
   }
 
   parsedPetitionStarter = {
     ...parsedPetitionStarter,
-    aadharNumber: isAadhaarVerified && !isValidAadhaarNumber(normalizedStarterAadhaar) 
+    aadharNumber: isAadhaarAlreadyVerified && !isValidAadhaarNumber(normalizedStarterAadhaar) 
       ? (req.user.aadhaarKyc.maskedAadhaar || normalizedStarterAadhaar)
       : normalizedStarterAadhaar,
-    panNumber: isPanVerified && !isValidPanNumber(normalizedStarterPan)
+    panNumber: isPanAlreadyVerified && !isValidPanNumber(normalizedStarterPan)
       ? (req.user.panKyc.panNumber || normalizedStarterPan)
       : normalizedStarterPan,
-    voterNumber: isVoterVerified && !isValidVoterNumber(normalizedStarterVoter)
+    voterNumber: isVoterAlreadyVerified && !isValidVoterNumber(normalizedStarterVoter)
       ? (req.user.voterKyc.voterId || normalizedStarterVoter)
       : normalizedStarterVoter,
   };
