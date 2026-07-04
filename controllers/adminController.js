@@ -571,6 +571,7 @@ export const addDummySignatures = async (req, res) => {
         "rediffmail.com", "zoho.com", "icloud.com", "mail.com", "yandex.com",
         "aol.com", "fastmail.com", "tutanota.com", "inbox.com", "live.com"
       ];
+      const randomDomain = emailDomains[Math.floor(Math.random() * emailDomains.length)];
       const cleanName = `${fName}${lName}`.toLowerCase().replace(/[^a-z0-9]/g, "");
       const email = `${cleanName}${uniqueSuffix}@${randomDomain}`;
 
