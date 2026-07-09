@@ -22,6 +22,7 @@ import {
   loginAsUser,
   updateUserPlan,
 } from "../controllers/adminController.js";
+import { getSeoKeywords } from "../controllers/seoController.js";
 import {
   adminGetPlans,
   adminCreatePlan,
@@ -91,6 +92,7 @@ router.post("/dummy/user", adminAuth, createDummyUser);
 router.post("/dummy/petition", adminAuth, createDummyPetition);
 router.post("/dummy/sign", adminAuth, addDummySignatures);
 router.post("/reset-kyc", adminAuth, resetUserKyc);
+router.post("/seo-keywords", adminAuth, getSeoKeywords);
 
 // Admin file upload helper
 import upload from "../middleware/upload.js";

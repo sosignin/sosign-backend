@@ -26,6 +26,7 @@
     "express-rate-limit": "^8.1.0",
     "form-data": "^4.0.5",
     "helmet": "^8.1.0",
+    "js-seo-keywords-generator": "^0.0.9",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.18.0",
     "morgan": "^1.10.1",
