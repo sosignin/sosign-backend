@@ -23,6 +23,7 @@ import {
   updateUserPlan,
 } from "../controllers/adminController.js";
 import { getSeoKeywords } from "../controllers/seoController.js";
+import { getGscStatus, getGscPerformance, inspectUrl, submitSitemap } from "../controllers/gscController.js";
 import {
   adminGetPlans,
   adminCreatePlan,
@@ -93,6 +94,12 @@ router.post("/dummy/petition", adminAuth, createDummyPetition);
 router.post("/dummy/sign", adminAuth, addDummySignatures);
 router.post("/reset-kyc", adminAuth, resetUserKyc);
 router.post("/seo-keywords", adminAuth, getSeoKeywords);
+
+// Google Search Console integration
+router.get("/gsc/status", adminAuth, getGscStatus);
+router.post("/gsc/performance", adminAuth, getGscPerformance);
+router.post("/gsc/inspect", adminAuth, inspectUrl);
+router.post("/gsc/submit-sitemap", adminAuth, submitSitemap);
 
 // Admin file upload helper
 import upload from "../middleware/upload.js";
