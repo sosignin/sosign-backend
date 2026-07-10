@@ -141,9 +141,9 @@ planSchema.statics.seedDefaults = async function () {
             {
                 key: "silver",
                 name: "Silver Plan",
-                price: 49000,
-                mrpPrice: 49000,
-                points: 10889,
+                price: 49999,
+                mrpPrice: 49999,
+                points: 11111,
                 bestFor: "Growing Businesses",
                 isCustom: false,
                 deductions: {
@@ -161,9 +161,9 @@ planSchema.statics.seedDefaults = async function () {
             {
                 key: "gold",
                 name: "Gold Plan",
-                price: 99000,
-                mrpPrice: 99000,
-                points: 23294,
+                price: 99999,
+                mrpPrice: 99999,
+                points: 25000,
                 bestFor: "High-Volume Businesses",
                 isCustom: false,
                 deductions: {
@@ -245,14 +245,30 @@ planSchema.statics.seedDefaults = async function () {
                 }
             }
             if (plan.key === "silver") {
-                if (plan.points !== 10889) {
-                    plan.points = 10889;
+                if (plan.price !== 49999) {
+                    plan.price = 49999;
+                    updated = true;
+                }
+                if (plan.mrpPrice !== 49999) {
+                    plan.mrpPrice = 49999;
+                    updated = true;
+                }
+                if (plan.points !== 11111) {
+                    plan.points = 11111;
                     updated = true;
                 }
             }
             if (plan.key === "gold") {
-                if (plan.points !== 23294) {
-                    plan.points = 23294;
+                if (plan.price !== 99999) {
+                    plan.price = 99999;
+                    updated = true;
+                }
+                if (plan.mrpPrice !== 99999) {
+                    plan.mrpPrice = 99999;
+                    updated = true;
+                }
+                if (plan.points !== 25000) {
+                    plan.points = 25000;
                     updated = true;
                 }
             }

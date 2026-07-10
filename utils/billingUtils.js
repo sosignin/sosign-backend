@@ -38,7 +38,12 @@ export const getPointsFromAmount = async (amount) => {
   } catch (error) {
     console.error("Error in getPointsFromAmount:", error);
   }
-  // Fallback conversion: 1 point = ₹5
+  // Fallback conversion:
+  // Custom pricing (amounts >= 99999) convert at ₹4 = 1 Point.
+  // Other custom amounts fallback to ₹5 = 1 Point.
+  if (amount >= 99999) {
+    return Math.floor(amount / 4);
+  }
   return Math.floor(amount / 5);
 };
 
