@@ -76,10 +76,9 @@ const allowedOrigins =
       "http://localhost:3001",
       "http://127.0.0.1:3000",
       "http://127.0.0.1:3001",
-      "https://sosign.vercel.app",
-      "https://sosign-admin.vercel.app",
+      "https://www.sosign.in",
+      "https://sosign.in",
       "https://sosign-admin-one.vercel.app",
-      "https://sosign-frontend.vercel.app",
     ];
 
 console.log("Allowed CORS origins:", allowedOrigins);

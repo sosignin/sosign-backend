@@ -90,7 +90,7 @@ export function checkAbusiveContent(text) {
     hasAbusive,
     foundWords,
     warning: hasAbusive
-      ? `⚠️ Warning: Your text contains abusive language (${foundWords.join(", ")}). Please remove abusive words before proceeding.`
+      ? `⚠️ Warning: Your text contains abusive language. Please remove abusive words before proceeding.`
       : "",
   };
 }
