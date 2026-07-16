@@ -34,6 +34,7 @@ import panRoutes from "./routes/panRoutes.js";
 import voterRoutes from "./routes/voterRoutes.js";
 import progressUpdateRoutes from "./routes/progressUpdateRoutes.js";
 import planRoutes from "./routes/planRoutes.js";
+import faqRoutes from "./routes/faqRoutes.js";
 
 
 // Middleware
@@ -42,6 +43,7 @@ import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
 // Models (for seeding)
 import Category from "./models/categoryModel.js";
 import Plan from "./models/planModel.js";
+import Faq from "./models/faqModel.js";
 
 // Load environment variables
 dotenv.config();
@@ -59,6 +61,12 @@ connectDB().then(async () => {
     await Plan.seedDefaults();
   } catch (error) {
     console.error("Error seeding plans:", error.message);
+  }
+  // Seed default FAQs
+  try {
+    await Faq.seedDefaults();
+  } catch (error) {
+    console.error("Error seeding FAQs:", error.message);
   }
 });
 
@@ -203,6 +211,7 @@ app.use("/api/pan", panRoutes);
 app.use("/api/voter", voterRoutes);
 app.use("/api/progress-updates", progressUpdateRoutes);
 app.use("/api/plans", planRoutes);
+app.use("/api/faqs", faqRoutes);
 
 
 // Root endpoint
@@ -222,6 +231,7 @@ app.get("/", (req, res) => {
       categories: "/api/categories",
       captcha: "/api/captcha",
       aadhaar: "/api/aadhaar",
+      faqs: "/api/faqs",
       health: "/health",
     },
   });
