@@ -429,10 +429,11 @@ const getPetitions = asyncHandler(async (req, res) => {
   }
 
   if (category) {
-    // Categories is an array field with lowercase values (education, human_rights, etc.)
-    // Convert the category to lowercase and use $in to match
-    const categoryLower = category.toLowerCase().replace(/\s+/g, "_");
-    query.categories = { $in: [categoryLower] };
+    // Match categories case-insensitively, handling spaces, underscores, and hyphens interchangeably.
+    // Escape special regex characters to prevent regex injection.
+    const escapedCategory = category.trim().replace(/[|\\{}()[\]^$+*?.]/g, '\\$&');
+    const regexPattern = escapedCategory.replace(/[-\s_]+/g, "[-\\s_]*");
+    query.categories = { $regex: new RegExp(`^${regexPattern}$`, "i") };
   }
 
   if (search) {

@@ -1,5 +1,6 @@
 import asyncHandler from "express-async-handler";
 import Category from "../models/categoryModel.js";
+import Petition from "../models/petitionModel.js";
 
 // @desc    Get all categories
 // @route   GET /api/categories
@@ -9,10 +10,35 @@ const getCategories = asyncHandler(async (req, res) => {
         .sort({ isDefault: -1, name: 1 }) // Default categories first, then alphabetical
         .lean();
 
+    // Aggregate petition counts grouped by category
+    const counts = await Petition.aggregate([
+        { $match: { approved: true, hidden: { $ne: true } } },
+        { $unwind: "$categories" },
+        { $group: { _id: "$categories", count: { $sum: 1 } } }
+    ]);
+
+    // Map counts array to a map object, normalizing keys to slug format
+    const countMap = {};
+    counts.forEach(item => {
+        if (item._id) {
+            const normalizedKey = item._id.trim().toLowerCase().replace(/[-\s_]+/g, "_");
+            countMap[normalizedKey] = (countMap[normalizedKey] || 0) + item.count;
+        }
+    });
+
+    // Add petitionCount to each category
+    const categoriesWithCounts = categories.map(cat => {
+        const catSlug = cat.slug.toLowerCase().replace(/[-\s_]+/g, "_");
+        return {
+            ...cat,
+            petitionCount: countMap[catSlug] || 0
+        };
+    });
+
     res.status(200).json({
         success: true,
-        categories,
-        total: categories.length,
+        categories: categoriesWithCounts,
+        total: categoriesWithCounts.length,
     });
 });
 
