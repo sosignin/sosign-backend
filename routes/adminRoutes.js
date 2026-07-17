@@ -188,6 +188,37 @@ router.get("/categories", adminAuth, async (req, res) => {
   }
 });
 
+router.post("/categories", adminAuth, async (req, res) => {
+  try {
+    const { name, icon } = req.body;
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({ success: false, message: "Category name is required" });
+    }
+    if (name.trim().length > 15) {
+      return res.status(400).json({ success: false, message: "Category name can be up to 15 characters only" });
+    }
+    const Category = await import("../models/categoryModel.js").then(m => m.default);
+    
+    // Check if category already exists (case-insensitive)
+    const existingCategory = await Category.findOne({
+      name: { $regex: new RegExp(`^${name.trim()}$`, 'i') }
+    });
+    if (existingCategory) {
+      return res.status(400).json({ success: false, message: "A category with this name already exists" });
+    }
+
+    const category = await Category.create({
+      name: name.trim(),
+      icon: icon || null,
+      isDefault: false
+    });
+
+    res.status(201).json({ success: true, message: "Category created successfully", category });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 router.delete("/categories/:id", adminAuth, async (req, res) => {
   try {
     const Category = await import("../models/categoryModel.js").then(m => m.default);
