@@ -16,7 +16,10 @@ const getAuthClient = () => {
   try {
     return new google.auth.GoogleAuth({
       keyFile: KEY_PATH,
-      scopes: ["https://www.googleapis.com/auth/webmasters"], // Read/Write access to GSC
+      scopes: [
+        "https://www.googleapis.com/auth/webmasters",
+        "https://www.googleapis.com/auth/indexing"
+      ], // Read/Write access to GSC and Google Indexing API
     });
   } catch (error) {
     console.error("Failed to initialize Google GSC auth client:", error);
@@ -192,3 +195,54 @@ export const submitSitemap = async (req, res) => {
     });
   }
 };
+
+/**
+ * Request instant indexing/update or deletion via Google Indexing API
+ * POST /api/admin/gsc/publish
+ */
+export const publishToIndex = async (req, res) => {
+  try {
+    const { url, type = "URL_UPDATED" } = req.body;
+
+    if (!url) {
+      return res.status(400).json({
+        success: false,
+        message: "URL is required for indexing request.",
+      });
+    }
+
+    const auth = getAuthClient();
+    if (!auth) {
+      return res.status(400).json({
+        success: false,
+        setupRequired: true,
+        message: "Google Service Account credentials.json is missing. Please generate credentials on Google Cloud and upload them as credentials.json to integrate Google Search Console and Indexing API.",
+      });
+    }
+
+    const indexing = google.indexing({
+      version: "v3",
+      auth: auth,
+    });
+
+    const response = await indexing.urlNotifications.publish({
+      requestBody: {
+        url,
+        type,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Google Indexing API call successful for: ${url}`,
+      data: response.data,
+    });
+  } catch (error) {
+    console.error("Google Indexing API Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to notify Google Indexing API.",
+    });
+  }
+};
+

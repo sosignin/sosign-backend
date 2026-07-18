@@ -39,6 +39,12 @@ const subAdminSchema = new mongoose.Schema(
         "categories",
         "crowdfunding",
         "withdrawals",
+        "rejected-petitions",
+        "progress-updates",
+        "faqs",
+        "plans",
+        "rapid-creation",
+        "seo-research",
       ],
     },
     isActive: {

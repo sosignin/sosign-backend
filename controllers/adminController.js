@@ -6,6 +6,7 @@ import Wallet from "../models/walletModel.js";
 import Crowdfunding from "../models/crowdfundingModel.js";
 import generateUserToken from "../utils/generateToken.js";
 import Plan from "../models/planModel.js";
+import { triggerRevalidation } from "../utils/revalidateUtils.js";
 
 const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;
 
@@ -219,6 +220,10 @@ export const approvePetition = async (req, res) => {
       type: "success",
       relatedId: petition._id,
     });
+
+    // Trigger Next.js static regeneration on-demand
+    triggerRevalidation("/currentpetitions");
+    triggerRevalidation(`/currentpetitions/${petition.slug}`);
 
     res.status(200).json({ message: "Petition approved successfully" });
   } catch (error) {

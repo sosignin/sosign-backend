@@ -22,6 +22,7 @@ import {
   verifyVoterVerificationToken,
 } from "../utils/voterVerificationUtils.js";
 import { checkAbusiveContent } from "../utils/abusiveWords.js";
+import { triggerRevalidation } from "../utils/revalidateUtils.js";
 
 // @desc    Create a new petition
 // @route   POST /api/petitions
@@ -754,6 +755,10 @@ const updatePetition = asyncHandler(async (req, res) => {
 
   const updatedPetition = await petition.save();
 
+  // Trigger static regeneration on-demand (since it is pending, it should be removed from active pages)
+  triggerRevalidation("/currentpetitions");
+  triggerRevalidation(`/currentpetitions/${updatedPetition.slug}`);
+
   res.status(200).json({
     _id: updatedPetition._id,
     title: updatedPetition.title,
@@ -1044,6 +1049,9 @@ const signPetition = asyncHandler(async (req, res) => {
     );
   }
   await petition.save();
+
+  // Trigger static regeneration on-demand to refresh signature stats
+  triggerRevalidation(`/currentpetitions/${petition.slug}`);
 
   res.status(200).json({
     message: "Petition signed successfully",

@@ -23,7 +23,7 @@ import {
   updateUserPlan,
 } from "../controllers/adminController.js";
 import { getSeoKeywords } from "../controllers/seoController.js";
-import { getGscStatus, getGscPerformance, inspectUrl, submitSitemap } from "../controllers/gscController.js";
+import { getGscStatus, getGscPerformance, inspectUrl, submitSitemap, publishToIndex } from "../controllers/gscController.js";
 import {
   adminGetPlans,
   adminCreatePlan,
@@ -100,6 +100,7 @@ router.get("/gsc/status", adminAuth, getGscStatus);
 router.post("/gsc/performance", adminAuth, getGscPerformance);
 router.post("/gsc/inspect", adminAuth, inspectUrl);
 router.post("/gsc/submit-sitemap", adminAuth, submitSitemap);
+router.post("/gsc/publish", adminAuth, publishToIndex);
 
 // Admin file upload helper
 import upload from "../middleware/upload.js";
