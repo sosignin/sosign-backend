@@ -36,6 +36,7 @@ import {
   getAllPetitionsForAdmin,
   getPetitionById,
   deletePetition,
+  getAdminPetitionSignatures,
 } from "../controllers/petitionController.js";
 import {
   getSuccessfulPetitions,
@@ -130,6 +131,7 @@ router.put("/petitions/:id/reset", adminAuth, resetPetition);
 // Admin petition management routes
 router.get("/petitions", adminAuth, getAllPetitionsForAdmin);
 router.get("/petitions/:id", adminAuth, getPetitionById);
+router.get("/petitions/:id/signatures", adminAuth, getAdminPetitionSignatures);
 router.delete("/petitions/:id", adminAuth, deletePetition);
 
 // Admin successful petition management routes

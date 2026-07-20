@@ -1342,6 +1342,74 @@ const getUserPetitionsSigners = asyncHandler(async (req, res) => {
   res.status(200).json(allSigners);
 });
 
+// @desc    Get all signatures for a petition (admin, paginated)
+// @route   GET /api/admin/petitions/:id/signatures
+// @access  Admin
+const getAdminPetitionSignatures = asyncHandler(async (req, res) => {
+  const petitionId = req.params.id;
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 20;
+  const skip = (page - 1) * limit;
+
+  const petition = await Petition.findById(petitionId).select("signatures numberOfSignatures");
+
+  if (!petition) {
+    res.status(404);
+    throw new Error("Petition not found");
+  }
+
+  const totalSignatures = petition.signatures.length;
+  const totalPages = Math.ceil(totalSignatures / limit);
+
+  // Sort signatures newest first, then paginate
+  const sortedSignatures = [...petition.signatures].sort(
+    (a, b) => new Date(b.signedAt) - new Date(a.signedAt)
+  );
+  const paginatedSignatureIds = sortedSignatures.slice(skip, skip + limit);
+
+  // Now populate user and referral.owner for the paginated slice
+  // We need to get the full petition with populated fields for these specific signatures
+  const userIds = paginatedSignatureIds.map((s) => s.user).filter(Boolean);
+  const ownerIds = paginatedSignatureIds
+    .map((s) => s.referral?.owner)
+    .filter(Boolean);
+
+  const [users, owners] = await Promise.all([
+    User.find({ _id: { $in: userIds } })
+      .select("name email uniqueCode designation profilePicture")
+      .lean(),
+    User.find({ _id: { $in: ownerIds } })
+      .select("name email uniqueCode")
+      .lean(),
+  ]);
+
+  const userMap = {};
+  for (const u of users) userMap[u._id.toString()] = u;
+  const ownerMap = {};
+  for (const o of owners) ownerMap[o._id.toString()] = o;
+
+  const signatures = paginatedSignatureIds.map((sig) => {
+    const sigObj = sig.toObject ? sig.toObject() : { ...sig };
+    if (sigObj.user) {
+      sigObj.user = userMap[sigObj.user.toString()] || sigObj.user;
+    }
+    if (sigObj.referral?.owner) {
+      sigObj.referral.owner =
+        ownerMap[sigObj.referral.owner.toString()] || sigObj.referral.owner;
+    }
+    return sigObj;
+  });
+
+  res.status(200).json({
+    signatures,
+    currentPage: page,
+    totalPages,
+    totalSignatures,
+    hasNextPage: page < totalPages,
+    hasPrevPage: page > 1,
+  });
+});
+
 export {
   createPetition,
   getPetitions,
@@ -1358,4 +1426,5 @@ export {
   getSignedPetitions,
   getPetitionSigners,
   getUserPetitionsSigners,
+  getAdminPetitionSignatures,
 };
