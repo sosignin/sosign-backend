@@ -35,6 +35,7 @@ import voterRoutes from "./routes/voterRoutes.js";
 import progressUpdateRoutes from "./routes/progressUpdateRoutes.js";
 import planRoutes from "./routes/planRoutes.js";
 import faqRoutes from "./routes/faqRoutes.js";
+import newsletterRoutes from "./routes/newsletterRoutes.js";
 
 
 // Middleware
@@ -212,6 +213,7 @@ app.use("/api/voter", voterRoutes);
 app.use("/api/progress-updates", progressUpdateRoutes);
 app.use("/api/plans", planRoutes);
 app.use("/api/faqs", faqRoutes);
+app.use("/api/newsletters", newsletterRoutes);
 
 
 // Root endpoint
