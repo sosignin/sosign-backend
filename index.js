@@ -35,7 +35,6 @@ import voterRoutes from "./routes/voterRoutes.js";
 import progressUpdateRoutes from "./routes/progressUpdateRoutes.js";
 import planRoutes from "./routes/planRoutes.js";
 import faqRoutes from "./routes/faqRoutes.js";
-import newsletterRoutes from "./routes/newsletterRoutes.js";
 
 
 // Middleware
@@ -83,8 +82,13 @@ const allowedOrigins =
   : [
       "http://localhost:3000",
       "http://localhost:3001",
+      "http://localhost:8081",
+      "http://localhost:8082",
+      "http://localhost:19006",
       "http://127.0.0.1:3000",
       "http://127.0.0.1:3001",
+      "http://127.0.0.1:8081",
+      "http://127.0.0.1:8082",
       "https://www.sosign.in",
       "https://sosign.in",
       "https://sosign-admin-one.vercel.app",
@@ -95,11 +99,13 @@ console.log("Allowed CORS origins:", allowedOrigins);
 // Manual CORS headers for ALL requests (ensures headers are always set)
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
+  const isDevLocal = process.env.NODE_ENV !== "production" && origin && (origin.includes("localhost") || origin.includes("127.0.0.1"));
+  if (origin && (allowedOrigins.includes(origin) || isDevLocal)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Credentials", "true");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+    res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
   }
 
   // Handle preflight OPTIONS requests immediately
@@ -159,10 +165,11 @@ if (process.env.NODE_ENV !== "production") {
   app.use(morgan("dev"));
 }
 
-// Rate limiting
+// Rate limiting (disabled in development for smooth local testing)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: process.env.NODE_ENV === "production" ? 100 : 10000,
+  skip: (req) => process.env.NODE_ENV !== "production",
   message: {
     error: "Too many requests from this IP, please try again after 15 minutes",
   },
@@ -213,7 +220,6 @@ app.use("/api/voter", voterRoutes);
 app.use("/api/progress-updates", progressUpdateRoutes);
 app.use("/api/plans", planRoutes);
 app.use("/api/faqs", faqRoutes);
-app.use("/api/newsletters", newsletterRoutes);
 
 
 // Root endpoint
