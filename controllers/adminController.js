@@ -872,3 +872,50 @@ export const updateUserPlan = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// Toggle/Update Banner Feature for a petition
+export const toggleBannerFeature = async (req, res) => {
+  try {
+    const { isFeaturedInBanner, bannerOrder } = req.body;
+    const petition = await Petition.findById(req.params.id);
+
+    if (!petition) {
+      return res.status(404).json({ message: "Petition not found" });
+    }
+
+    if (isFeaturedInBanner !== undefined) {
+      petition.isFeaturedInBanner = Boolean(isFeaturedInBanner);
+    }
+    if (bannerOrder !== undefined) {
+      petition.bannerOrder = Number(bannerOrder);
+    }
+
+    await petition.save();
+
+    // Trigger revalidation for homepage
+    triggerRevalidation("/");
+    triggerRevalidation("/currentpetitions");
+
+    res.status(200).json({
+      message: `Petition ${petition.isFeaturedInBanner ? "featured in" : "removed from"} banner slider`,
+      petition,
+    });
+  } catch (error) {
+    console.error("Error toggling banner feature:", error);
+    res.status(500).json({ message: "Error updating banner feature status" });
+  }
+};
+
+// Get all petitions featured in the banner slider
+export const getBannerPetitions = async (req, res) => {
+  try {
+    const petitions = await Petition.find({ isFeaturedInBanner: true })
+      .populate("petitionStarter.user", "name email profilePicture")
+      .sort({ bannerOrder: 1, createdAt: -1 });
+
+    res.status(200).json({ petitions });
+  } catch (error) {
+    console.error("Error fetching banner petitions:", error);
+    res.status(500).json({ message: "Error fetching banner petitions" });
+  }
+};

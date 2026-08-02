@@ -38,6 +38,7 @@ const createPetition = asyncHandler(async (req, res) => {
     categories,
     constituencySettings,
     signingRequirements,
+    socialLinks,
     aadhaarVerificationToken,
     aadharVerificationToken,
     panVerificationToken,
@@ -121,6 +122,16 @@ const createPetition = asyncHandler(async (req, res) => {
     } catch (error) {
       res.status(400);
       throw new Error("Invalid signing requirements data format");
+    }
+  }
+
+  // Parse socialLinks if it's a string (from FormData)
+  let parsedSocialLinks = socialLinks || {};
+  if (typeof socialLinks === "string") {
+    try {
+      parsedSocialLinks = JSON.parse(socialLinks);
+    } catch (error) {
+      // Fallback
     }
   }
 
@@ -332,6 +343,7 @@ const createPetition = asyncHandler(async (req, res) => {
     },
     constituencySettings: parsedConstituencySettings,
     signingRequirements: parsedSigningRequirements,
+    socialLinks: parsedSocialLinks,
     approved: false, // Explicitly set to false for approval workflow
   });
 
@@ -449,14 +461,14 @@ const getPetitions = asyncHandler(async (req, res) => {
   query.approved = true;
   query.hidden = { $ne: true };
 
-  // Build sort object
-  let sortOption = { createdAt: -1 }; // Default: newest first
+  // Build sort object (prioritize featured banner petitions first)
+  let sortOption = { isFeaturedInBanner: -1, bannerOrder: 1, createdAt: -1 };
   if (sort === "signatures") {
-    sortOption = { numberOfSignatures: -1 };
+    sortOption = { isFeaturedInBanner: -1, bannerOrder: 1, numberOfSignatures: -1 };
   } else if (sort === "oldest") {
-    sortOption = { createdAt: 1 };
+    sortOption = { isFeaturedInBanner: -1, bannerOrder: 1, createdAt: 1 };
   } else if (sort === "newest") {
-    sortOption = { createdAt: -1 };
+    sortOption = { isFeaturedInBanner: -1, bannerOrder: 1, createdAt: -1 };
   }
 
   // Run count and find in parallel
@@ -718,6 +730,7 @@ const updatePetition = asyncHandler(async (req, res) => {
     petitionStarter,
     constituencySettings,
     signingRequirements,
+    socialLinks,
     existingImages,
   } = req.body;
 
@@ -740,6 +753,7 @@ const updatePetition = asyncHandler(async (req, res) => {
   const parsedPetitionStarter = parseField(petitionStarter);
   const parsedConstituencySettings = parseField(constituencySettings);
   const parsedSigningRequirements = parseField(signingRequirements);
+  const parsedSocialLinks = parseField(socialLinks);
   const parsedExistingImages = parseField(existingImages);
 
   // Process image uploads if any new files uploaded
@@ -776,6 +790,13 @@ const updatePetition = asyncHandler(async (req, res) => {
       ...(parsedPetitionDetails || {}),
       images: finalImages,
       image: finalImages[0] || petition.petitionDetails?.image || "",
+    };
+  }
+
+  if (parsedSocialLinks !== undefined) {
+    petition.socialLinks = {
+      ...(petition.socialLinks || {}),
+      ...parsedSocialLinks,
     };
   }
 
@@ -827,6 +848,7 @@ const updatePetition = asyncHandler(async (req, res) => {
     country: updatedPetition.country,
     petitionDetails: updatedPetition.petitionDetails,
     petitionStarter: updatedPetition.petitionStarter,
+    socialLinks: updatedPetition.socialLinks,
     numberOfSignatures: updatedPetition.numberOfSignatures,
     approved: updatedPetition.approved,
     status: updatedPetition.status,

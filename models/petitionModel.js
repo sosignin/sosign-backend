@@ -71,6 +71,23 @@ const petitionSchema = mongoose.Schema(
       mpConstituencyNumber: { type: String },
       mlaConstituencyNumber: { type: String },
     },
+    socialLinks: {
+      facebook: { type: String, default: "" },
+      twitter: { type: String, default: "" },
+      instagram: { type: String, default: "" },
+      youtube: { type: String, default: "" },
+      linkedin: { type: String, default: "" },
+      website: { type: String, default: "" },
+    },
+    isFeaturedInBanner: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    bannerOrder: {
+      type: Number,
+      default: 0,
+    },
     numberOfSignatures: {
       type: Number,
       default: 0,
