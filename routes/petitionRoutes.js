@@ -39,7 +39,7 @@ router.route("/country/:country").get(setCache(60), getPetitionsByCountry); // C
 router
   .route("/:id")
   .get(setCache(60), getPetitionById) // Cache details for 60s
-  .put(protect, updatePetition)
+  .put(protect, upload.array("images", 4), updatePetition)
   .delete(protect, deletePetition);
 
 router.route("/:id/sign").put(protect, signPetition);

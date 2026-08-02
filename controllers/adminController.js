@@ -7,6 +7,7 @@ import Crowdfunding from "../models/crowdfundingModel.js";
 import generateUserToken from "../utils/generateToken.js";
 import Plan from "../models/planModel.js";
 import { triggerRevalidation } from "../utils/revalidateUtils.js";
+import Notification from "../models/notificationModel.js";
 
 const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;
 
@@ -168,8 +169,6 @@ export const toggleUserSuspension = async (req, res) => {
   }
 };
 
-import Notification from "../models/notificationModel.js";
-
 // Get all unapproved petitions
 export const getUnapprovedPetitions = async (req, res) => {
   try {
@@ -241,21 +240,41 @@ export const rejectPetition = async (req, res) => {
       return res.status(404).json({ message: "Petition not found" });
     }
 
+    const wasAlreadyRejected = petition.status === "rejected";
+
     petition.approved = false;
     petition.status = "rejected";
     petition.rejectionReason = reason || "Does not meet our community guidelines.";
     await petition.save();
 
+    // Credit back 5 points to user's wallet if not already rejected
+    if (!wasAlreadyRejected && petition.petitionStarter?.user) {
+      try {
+        const wallet = await Wallet.getOrCreateWallet(petition.petitionStarter.user);
+        if (wallet) {
+          wallet.balance += 5;
+          wallet.transactions.push({
+            type: "credit",
+            amount: 5,
+            description: `Refund for rejected petition: ${petition.title}`,
+          });
+          await wallet.save();
+        }
+      } catch (walletErr) {
+        console.error("Error refunding wallet points on petition rejection:", walletErr);
+      }
+    }
+
     // Create notification
     await Notification.create({
       recipient: petition.petitionStarter.user,
       title: "Petition Rejected",
-      message: `Your petition "${petition.title}" was rejected. Reason: ${petition.rejectionReason}`,
+      message: `Your petition "${petition.title}" was rejected. Reason: ${petition.rejectionReason}. 5 points have been credited back to your wallet.`,
       type: "error",
       relatedId: petition._id,
     });
 
-    res.status(200).json({ message: "Petition rejected successfully" });
+    res.status(200).json({ message: "Petition rejected successfully and points refunded." });
   } catch (error) {
     console.error("Error rejecting petition:", error);
     res.status(500).json({ message: "Error rejecting petition" });

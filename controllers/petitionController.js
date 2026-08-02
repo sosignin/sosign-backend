@@ -639,14 +639,14 @@ const getPetitionById = asyncHandler(async (req, res) => {
         }
 
         requestedSignersStatus = petition.requestedSigners.map(rs => {
-          const rsNameLower = rs.name.trim().toLowerCase();
-          const rsEmailLower = rs.email?.trim().toLowerCase();
+          const rsNameLower = rs.name ? rs.name.trim().toLowerCase() : "";
+          const rsEmailLower = rs.email ? rs.email.trim().toLowerCase() : "";
 
           const matchedUser = matchingUsers.find(u => {
-            if (rsEmailLower && u.email.toLowerCase() === rsEmailLower) {
+            if (rsEmailLower && u.email && u.email.toLowerCase() === rsEmailLower) {
               return true;
             }
-            if (u.aadhaarKyc?.status === "verified" && u.aadhaarKyc.name) {
+            if (u.aadhaarKyc?.status === "verified" && u.aadhaarKyc.name && rsNameLower) {
               return u.aadhaarKyc.name.trim().toLowerCase() === rsNameLower;
             }
             return false;
@@ -713,38 +713,97 @@ const updatePetition = asyncHandler(async (req, res) => {
     decisionMakers,
     requestedSigners,
     country,
+    categories,
     petitionDetails,
+    petitionStarter,
     constituencySettings,
     signingRequirements,
+    existingImages,
   } = req.body;
+
+  // Helper for parsing JSON strings if sent via FormData
+  const parseField = (val) => {
+    if (typeof val === "string") {
+      try {
+        return JSON.parse(val);
+      } catch (e) {
+        return val;
+      }
+    }
+    return val;
+  };
+
+  const parsedDecisionMakers = parseField(decisionMakers);
+  const parsedRequestedSigners = parseField(requestedSigners);
+  const parsedCategories = parseField(categories);
+  const parsedPetitionDetails = parseField(petitionDetails);
+  const parsedPetitionStarter = parseField(petitionStarter);
+  const parsedConstituencySettings = parseField(constituencySettings);
+  const parsedSigningRequirements = parseField(signingRequirements);
+  const parsedExistingImages = parseField(existingImages);
+
+  // Process image uploads if any new files uploaded
+  let newUploadedImages = [];
+  if (req.files && req.files.length > 0) {
+    newUploadedImages = req.files.map((file) => file.path);
+  }
+
+  // Build updated images array
+  let finalImages = [];
+  if (Array.isArray(parsedExistingImages)) {
+    finalImages = [...parsedExistingImages];
+  } else if (parsedPetitionDetails?.images && Array.isArray(parsedPetitionDetails.images)) {
+    finalImages = [...parsedPetitionDetails.images];
+  } else if (petition.petitionDetails?.images && Array.isArray(petition.petitionDetails.images)) {
+    finalImages = [...petition.petitionDetails.images];
+  }
+
+  if (newUploadedImages.length > 0) {
+    finalImages = [...finalImages, ...newUploadedImages];
+  }
+  finalImages = finalImages.slice(0, 4);
 
   // Update only the fields that are provided
   if (title !== undefined) petition.title = title;
-  if (decisionMakers !== undefined) petition.decisionMakers = decisionMakers;
-  if (requestedSigners !== undefined) petition.requestedSigners = requestedSigners;
+  if (parsedDecisionMakers !== undefined) petition.decisionMakers = parsedDecisionMakers;
+  if (parsedRequestedSigners !== undefined) petition.requestedSigners = parsedRequestedSigners;
   if (country !== undefined) petition.country = country;
-  if (petitionDetails !== undefined) {
+  if (parsedCategories !== undefined) petition.categories = parsedCategories;
+
+  if (parsedPetitionDetails !== undefined || finalImages.length > 0) {
     petition.petitionDetails = {
       ...petition.petitionDetails,
-      ...petitionDetails,
+      ...(parsedPetitionDetails || {}),
+      images: finalImages,
+      image: finalImages[0] || petition.petitionDetails?.image || "",
     };
   }
-  if (constituencySettings !== undefined) {
+
+  if (parsedPetitionStarter !== undefined) {
+    petition.petitionStarter = {
+      ...petition.petitionStarter,
+      ...parsedPetitionStarter,
+      user: petition.petitionStarter.user, // Preserve creator ID
+    };
+  }
+
+  if (parsedConstituencySettings !== undefined) {
     petition.constituencySettings = {
-      required: constituencySettings.required || false,
+      required: parsedConstituencySettings.required || false,
       allowedConstituency:
-        constituencySettings.allowedConstituency || undefined,
+        parsedConstituencySettings.allowedConstituency || undefined,
     };
   }
-  if (signingRequirements !== undefined) {
+
+  if (parsedSigningRequirements !== undefined) {
     petition.signingRequirements = {
       constituency: {
-        required: signingRequirements.constituency?.required || false,
+        required: parsedSigningRequirements.constituency?.required || false,
         allowedConstituency:
-          signingRequirements.constituency?.allowedConstituency || undefined,
+          parsedSigningRequirements.constituency?.allowedConstituency || undefined,
       },
       aadhar: {
-        required: signingRequirements.aadhar?.required || false,
+        required: parsedSigningRequirements.aadhar?.required || false,
       },
     };
   }
@@ -762,6 +821,7 @@ const updatePetition = asyncHandler(async (req, res) => {
   res.status(200).json({
     _id: updatedPetition._id,
     title: updatedPetition.title,
+    categories: updatedPetition.categories,
     decisionMakers: updatedPetition.decisionMakers,
     requestedSigners: updatedPetition.requestedSigners,
     country: updatedPetition.country,
