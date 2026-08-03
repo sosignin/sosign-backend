@@ -84,6 +84,11 @@ const petitionSchema = mongoose.Schema(
       default: false,
       index: true,
     },
+    showSchoolStallMap: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     bannerOrder: {
       type: Number,
       default: 0,

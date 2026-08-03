@@ -23,6 +23,7 @@ import {
   updateUserPlan,
   toggleBannerFeature,
   getBannerPetitions,
+  toggleSchoolStallMap,
 } from "../controllers/adminController.js";
 import { getSeoKeywords } from "../controllers/seoController.js";
 import { getGscStatus, getGscPerformance, inspectUrl, submitSitemap, publishToIndex } from "../controllers/gscController.js";
@@ -133,6 +134,7 @@ router.put("/petitions/:id/reset", adminAuth, resetPetition);
 // Admin petition management routes
 router.get("/petitions/banner", adminAuth, getBannerPetitions);
 router.put("/petitions/:id/banner-feature", adminAuth, toggleBannerFeature);
+router.put("/petitions/:id/school-stall-map", adminAuth, toggleSchoolStallMap);
 router.get("/petitions", adminAuth, getAllPetitionsForAdmin);
 router.get("/petitions/:id", adminAuth, getPetitionById);
 router.get("/petitions/:id/signatures", adminAuth, getAdminPetitionSignatures);

@@ -35,6 +35,7 @@ import voterRoutes from "./routes/voterRoutes.js";
 import progressUpdateRoutes from "./routes/progressUpdateRoutes.js";
 import planRoutes from "./routes/planRoutes.js";
 import faqRoutes from "./routes/faqRoutes.js";
+import stallReportRoutes from "./routes/stallReportRoutes.js";
 
 
 // Middleware
@@ -218,6 +219,7 @@ app.use("/api/withdrawals", withdrawalRoutes);
 app.use("/api/pan", panRoutes);
 app.use("/api/voter", voterRoutes);
 app.use("/api/progress-updates", progressUpdateRoutes);
+app.use("/api/stall-reports", stallReportRoutes);
 app.use("/api/plans", planRoutes);
 app.use("/api/faqs", faqRoutes);
 

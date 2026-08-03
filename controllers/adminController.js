@@ -919,3 +919,26 @@ export const getBannerPetitions = async (req, res) => {
     res.status(500).json({ message: "Error fetching banner petitions" });
   }
 };
+
+// Toggle School Stall Map widget visibility for a petition
+export const toggleSchoolStallMap = async (req, res) => {
+  try {
+    const { showSchoolStallMap } = req.body;
+    const petition = await Petition.findById(req.params.id);
+
+    if (!petition) {
+      return res.status(404).json({ message: "Petition not found" });
+    }
+
+    petition.showSchoolStallMap = Boolean(showSchoolStallMap);
+    await petition.save();
+
+    res.status(200).json({
+      message: `School Stall Map ${petition.showSchoolStallMap ? "enabled" : "disabled"} for this petition`,
+      petition,
+    });
+  } catch (error) {
+    console.error("Error toggling school stall map:", error);
+    res.status(500).json({ message: "Error updating school stall map status" });
+  }
+};
