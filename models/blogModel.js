@@ -8,6 +8,10 @@ const blogSchema = new mongoose.Schema(
             trim: true,
             maxLength: [200, "Title cannot exceed 200 characters"],
         },
+        titleFont: {
+            type: String,
+            default: "'Outfit', sans-serif",
+        },
         slug: {
             type: String,
             unique: true,

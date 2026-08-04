@@ -105,7 +105,7 @@ const getBlogById = asyncHandler(async (req, res) => {
 // @route   POST /api/blogs
 // @access  Private/Admin
 const createBlog = asyncHandler(async (req, res) => {
-    const { title, content, excerpt, author, category, tags, isFeatured, isPublished } = req.body;
+    const { title, titleFont, content, excerpt, author, category, tags, isFeatured, isPublished } = req.body;
 
     if (!title || !content || !author) {
         res.status(400);
@@ -130,6 +130,7 @@ const createBlog = asyncHandler(async (req, res) => {
 
     const blog = await Blog.create({
         title,
+        titleFont: titleFont || "'Outfit', sans-serif",
         content,
         excerpt: excerpt || "",
         author,
@@ -154,7 +155,7 @@ const updateBlog = asyncHandler(async (req, res) => {
         throw new Error("Blog not found");
     }
 
-    const { title, content, excerpt, author, category, tags, isFeatured, isPublished } = req.body;
+    const { title, titleFont, content, excerpt, author, category, tags, isFeatured, isPublished } = req.body;
 
     // Handle image from file upload (Cloudinary)
     let imageUrl = blog.image;
@@ -173,6 +174,7 @@ const updateBlog = asyncHandler(async (req, res) => {
     }
 
     blog.title = title || blog.title;
+    if (titleFont) blog.titleFont = titleFont;
     blog.content = content || blog.content;
     blog.excerpt = excerpt !== undefined ? excerpt : blog.excerpt;
     blog.author = author || blog.author;
