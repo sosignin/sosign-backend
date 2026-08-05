@@ -942,3 +942,59 @@ export const toggleSchoolStallMap = async (req, res) => {
     res.status(500).json({ message: "Error updating school stall map status" });
   }
 };
+
+// Update Petition Slug for SEO
+export const updatePetitionSlug = async (req, res) => {
+  try {
+    const { slug } = req.body;
+
+    if (!slug) {
+      return res.status(400).json({ message: "Slug is required" });
+    }
+
+    const cleanSlug = slug
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+
+    if (!cleanSlug) {
+      return res.status(400).json({ message: "Invalid slug format" });
+    }
+
+    // Check for duplicate slug
+    const existingPetition = await Petition.findOne({
+      slug: cleanSlug,
+      _id: { $ne: req.params.id },
+    });
+
+    if (existingPetition) {
+      return res.status(400).json({ message: "Slug is already used by another petition" });
+    }
+
+    const petition = await Petition.findById(req.params.id);
+    if (!petition) {
+      return res.status(404).json({ message: "Petition not found" });
+    }
+
+    petition.slug = cleanSlug;
+    await petition.save();
+
+    // Trigger revalidation
+    triggerRevalidation("/");
+    triggerRevalidation("/currentpetitions");
+    triggerRevalidation(`/currentpetitions/${cleanSlug}`);
+
+    res.status(200).json({
+      success: true,
+      message: "Petition SEO URL slug updated successfully",
+      slug: petition.slug,
+      petition,
+    });
+  } catch (error) {
+    console.error("Error updating petition slug:", error);
+    res.status(500).json({ message: "Failed to update petition slug: " + error.message });
+  }
+};

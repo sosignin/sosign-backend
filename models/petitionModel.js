@@ -169,11 +169,12 @@ const petitionSchema = mongoose.Schema(
   }
 );
 
-// Pre-save hook to generate slug from title
+// Pre-save hook to generate or format slug
 petitionSchema.pre('save', async function (next) {
-  // Only generate slug if title is modified or slug doesn't exist
-  if (this.isModified('title') || !this.slug) {
-    let baseSlug = generateSlug(this.title);
+  if (this.isModified('slug') && this.slug) {
+    this.slug = generateSlug(this.slug);
+  } else if (!this.slug || (this.isModified('title') && !this.isModified('slug'))) {
+    let baseSlug = generateSlug(this.title || '');
     let slug = baseSlug;
     let counter = 1;
 
