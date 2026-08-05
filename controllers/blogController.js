@@ -105,7 +105,7 @@ const getBlogById = asyncHandler(async (req, res) => {
 // @route   POST /api/blogs
 // @access  Private/Admin
 const createBlog = asyncHandler(async (req, res) => {
-    const { title, titleFont, content, excerpt, author, category, tags, isFeatured, isPublished } = req.body;
+    const { title, titleFont, slug, content, excerpt, author, category, tags, isFeatured, isPublished } = req.body;
 
     if (!title || !content || !author) {
         res.status(400);
@@ -128,9 +128,13 @@ const createBlog = asyncHandler(async (req, res) => {
         }
     }
 
+    // Clean custom slug if provided
+    let customSlug = slug ? slug.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") : undefined;
+
     const blog = await Blog.create({
         title,
         titleFont: titleFont || "'Outfit', sans-serif",
+        slug: customSlug,
         content,
         excerpt: excerpt || "",
         author,
@@ -155,7 +159,7 @@ const updateBlog = asyncHandler(async (req, res) => {
         throw new Error("Blog not found");
     }
 
-    const { title, titleFont, content, excerpt, author, category, tags, isFeatured, isPublished } = req.body;
+    const { title, titleFont, slug, content, excerpt, author, category, tags, isFeatured, isPublished } = req.body;
 
     // Handle image from file upload (Cloudinary)
     let imageUrl = blog.image;
@@ -175,6 +179,14 @@ const updateBlog = asyncHandler(async (req, res) => {
 
     blog.title = title || blog.title;
     if (titleFont) blog.titleFont = titleFont;
+    if (slug) {
+        blog.slug = slug.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    } else if (title && title !== blog.title) {
+        blog.slug = title
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/(^-|-$)/g, "");
+    }
     blog.content = content || blog.content;
     blog.excerpt = excerpt !== undefined ? excerpt : blog.excerpt;
     blog.author = author || blog.author;
@@ -183,14 +195,6 @@ const updateBlog = asyncHandler(async (req, res) => {
     blog.tags = parsedTags || blog.tags;
     blog.isFeatured = isFeatured !== undefined ? (isFeatured === "true" || isFeatured === true) : blog.isFeatured;
     blog.isPublished = isPublished !== undefined ? (isPublished !== "false" && isPublished !== false) : blog.isPublished;
-
-    // Regenerate slug if title changed
-    if (title && title !== blog.title) {
-        blog.slug = title
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/(^-|-$)/g, "") + "-" + Date.now().toString(36);
-    }
 
     const updatedBlog = await blog.save();
     res.json(updatedBlog);

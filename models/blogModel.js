@@ -63,18 +63,18 @@ const blogSchema = new mongoose.Schema(
     }
 );
 
-// Generate slug from title before saving
+// Generate or format slug before saving
 blogSchema.pre("save", function (next) {
-    if (this.isModified("title") || !this.slug) {
+    if (this.slug) {
+        this.slug = this.slug
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/(^-|-$)/g, "");
+    } else if (this.title) {
         this.slug = this.title
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, "-")
             .replace(/(^-|-$)/g, "");
-
-        // Add unique suffix if needed
-        if (!this.isNew) {
-            this.slug = `${this.slug}-${Date.now().toString(36)}`;
-        }
     }
 
     // Auto-generate excerpt if not provided
