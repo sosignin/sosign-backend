@@ -95,23 +95,44 @@ const allowedOrigins =
       "https://sosign-admin-one.vercel.app",
     ];
 
+const isOriginAllowed = (origin) => {
+  if (!origin) return true;
+  const cleanOrigin = origin.trim().replace(/\/$/, "");
+  if (allowedOrigins.some((o) => o.trim().replace(/\/$/, "") === cleanOrigin)) return true;
+  if (
+    cleanOrigin.endsWith(".vercel.app") ||
+    cleanOrigin.endsWith(".sosign.in") ||
+    cleanOrigin === "https://sosign.in" ||
+    cleanOrigin === "https://www.sosign.in" ||
+    cleanOrigin === "https://sosign-admin-one.vercel.app"
+  ) {
+    return true;
+  }
+  if (
+    process.env.NODE_ENV !== "production" &&
+    (cleanOrigin.includes("localhost") || cleanOrigin.includes("127.0.0.1"))
+  ) {
+    return true;
+  }
+  return false;
+};
+
 console.log("Allowed CORS origins:", allowedOrigins);
 
 // Manual CORS headers for ALL requests (ensures headers are always set)
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  const isDevLocal = process.env.NODE_ENV !== "production" && origin && (origin.includes("localhost") || origin.includes("127.0.0.1"));
-  if (origin && (allowedOrigins.includes(origin) || isDevLocal)) {
+  if (origin && isOriginAllowed(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Credentials", "true");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
     res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
   }
 
   // Handle preflight OPTIONS requests immediately
   if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
+    return res.status(200).end();
   }
 
   next();
@@ -121,27 +142,14 @@ app.use((req, res, next) => {
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
-
-      // In development, allow all localhost origins
-      if (
-        process.env.NODE_ENV !== "production" &&
-        origin.includes("localhost")
-      ) {
+      if (!origin || isOriginAllowed(origin)) {
         return callback(null, true);
       }
-
-      if (allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
-      } else {
-        console.log("Blocked by CORS:", origin);
-        callback(null, false);
-      }
+      return callback(null, true);
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
   }),
 );
 
