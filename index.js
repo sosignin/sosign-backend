@@ -126,7 +126,11 @@ app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Credentials", "true");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      req.headers["access-control-request-headers"] ||
+        "Content-Type, Authorization, X-Requested-With, Accept, Origin, X-HTTP-Method-Override, X-Method-Override"
+    );
     res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
   }
 
@@ -149,7 +153,15 @@ app.use(
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Accept",
+      "Origin",
+      "X-HTTP-Method-Override",
+      "X-Method-Override",
+    ],
   }),
 );
 
