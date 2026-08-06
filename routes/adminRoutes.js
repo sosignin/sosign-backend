@@ -127,16 +127,16 @@ router.get("/wallets", adminAuth, getWallets);
 // Get unapproved petitions
 router.get("/petitions/unapproved", adminAuth, getUnapprovedPetitions);
 router.get("/petitions/rejected", adminAuth, getRejectedPetitions);
-// Approve petition
-router.put("/petitions/:id/approve", adminAuth, approvePetition);
-router.put("/petitions/:id/reject", adminAuth, rejectPetition);
-router.put("/petitions/:id/reset", adminAuth, resetPetition);
+// Approve/Reject/Reset petition
+router.route("/petitions/:id/approve").put(adminAuth, approvePetition).post(adminAuth, approvePetition);
+router.route("/petitions/:id/reject").put(adminAuth, rejectPetition).post(adminAuth, rejectPetition);
+router.route("/petitions/:id/reset").put(adminAuth, resetPetition).post(adminAuth, resetPetition);
 
 // Admin petition management routes
 router.get("/petitions/banner", adminAuth, getBannerPetitions);
-router.put("/petitions/:id/banner-feature", adminAuth, toggleBannerFeature);
-router.put("/petitions/:id/school-stall-map", adminAuth, toggleSchoolStallMap);
-router.put("/petitions/:id/slug", adminAuth, updatePetitionSlug);
+router.route("/petitions/:id/banner-feature").put(adminAuth, toggleBannerFeature).post(adminAuth, toggleBannerFeature);
+router.route("/petitions/:id/school-stall-map").put(adminAuth, toggleSchoolStallMap).post(adminAuth, toggleSchoolStallMap);
+router.route("/petitions/:id/slug").put(adminAuth, updatePetitionSlug).post(adminAuth, updatePetitionSlug);
 router.get("/petitions", adminAuth, getAllPetitionsForAdmin);
 router.get("/petitions/:id", adminAuth, getPetitionById);
 router.get("/petitions/:id/signatures", adminAuth, getAdminPetitionSignatures);
