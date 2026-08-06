@@ -73,8 +73,8 @@ connectDB().then(async () => {
 
 const app = express();
 
-// Trust proxy for rate limiting behind reverse proxies
-app.set("trust proxy", 1);
+// Trust proxy for rate limiting behind reverse proxies (Nginx / Cloudflare / cPanel)
+app.set("trust proxy", process.env.TRUST_PROXY ? process.env.TRUST_PROXY === "true" ? true : parseInt(process.env.TRUST_PROXY, 10) : true);
 
 // CORS configuration - MUST be before helmet and other middleware
 const allowedOrigins =
@@ -174,11 +174,12 @@ if (process.env.NODE_ENV !== "production") {
   app.use(morgan("dev"));
 }
 
-// Rate limiting (disabled in development for smooth local testing)
+// Rate limiting (generous default for production, configurable via env)
+const maxRequests = parseInt(process.env.RATE_LIMIT_MAX, 10) || (process.env.NODE_ENV === "production" ? 2000 : 10000);
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === "production" ? 100 : 10000,
-  skip: (req) => process.env.NODE_ENV !== "production",
+  max: maxRequests,
+  skip: (req) => process.env.NODE_ENV !== "production" && !process.env.TEST_RATE_LIMIT,
   message: {
     error: "Too many requests from this IP, please try again after 15 minutes",
   },
