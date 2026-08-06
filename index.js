@@ -193,6 +193,19 @@ app.use("/api", limiter);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
+// Method override middleware (bypasses WAF/cPanel PUT & DELETE restrictions)
+app.use((req, res, next) => {
+  const overrideMethod =
+    req.headers["x-http-method-override"] ||
+    req.headers["x-method-override"] ||
+    req.query?._method ||
+    req.body?._method;
+  if (overrideMethod && typeof overrideMethod === "string") {
+    req.method = overrideMethod.toUpperCase();
+  }
+  next();
+});
+
 // Cookie parser middleware
 app.use(cookieParser());
 

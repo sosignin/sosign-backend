@@ -24,7 +24,7 @@ router.post("/", protect, upload.array("images", 5), createStallReport);
 
 // Admin management routes
 router.get("/admin/reports", adminAuth, getAdminStallReports);
-router.put("/admin/:id/approve", adminAuth, approveStallReport);
-router.put("/admin/:id/reject", adminAuth, rejectStallReport);
+router.route("/admin/:id/approve").put(adminAuth, approveStallReport).post(adminAuth, approveStallReport);
+router.route("/admin/:id/reject").put(adminAuth, rejectStallReport).post(adminAuth, rejectStallReport);
 
 export default router;

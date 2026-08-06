@@ -70,25 +70,29 @@ router.post("/logout", adminLogout);
 router.get("/customers", getUsers);
 
 // Toggle user suspension
-router.put("/customers/:id/suspend", adminAuth, toggleUserSuspension);
+router.route("/customers/:id/suspend").put(adminAuth, toggleUserSuspension).post(adminAuth, toggleUserSuspension);
 
 // Update/reset user mobile number
-router.put("/customers/:id/mobile", adminAuth, updateUserMobile);
+router.route("/customers/:id/mobile").put(adminAuth, updateUserMobile).post(adminAuth, updateUserMobile);
 
 // Update user name
-router.put("/customers/:id/name", adminAuth, updateUserName);
+router.route("/customers/:id/name").put(adminAuth, updateUserName).post(adminAuth, updateUserName);
 
 // Impersonate user (Login as user)
 router.post("/customers/:id/login-as", adminAuth, loginAsUser);
 
 // Update user plan & points balance
-router.put("/customers/:id/plan", adminAuth, updateUserPlan);
+router.route("/customers/:id/plan").put(adminAuth, updateUserPlan).post(adminAuth, updateUserPlan);
 
 // Admin pricing plan package config CRUD
 router.get("/plans", adminAuth, adminGetPlans);
 router.post("/plans", adminAuth, adminCreatePlan);
-router.put("/plans/:id", adminAuth, adminUpdatePlan);
-router.delete("/plans/:id", adminAuth, adminDeletePlan);
+router.route("/plans/:id").put(adminAuth, adminUpdatePlan).delete(adminAuth, adminDeletePlan).post(adminAuth, (req, res, next) => {
+  if (req.body?._action === "delete" || req.query?._action === "delete") {
+    return adminDeletePlan(req, res, next);
+  }
+  return adminUpdatePlan(req, res, next);
+});
 
 // Get verified users (DigiLocker KYC)
 router.get("/verified-users", adminAuth, getVerifiedUsers);
@@ -140,16 +144,16 @@ router.route("/petitions/:id/slug").put(adminAuth, updatePetitionSlug).post(admi
 router.get("/petitions", adminAuth, getAllPetitionsForAdmin);
 router.get("/petitions/:id", adminAuth, getPetitionById);
 router.get("/petitions/:id/signatures", adminAuth, getAdminPetitionSignatures);
-router.delete("/petitions/:id", adminAuth, deletePetition);
+router.route("/petitions/:id").delete(adminAuth, deletePetition).post(adminAuth, deletePetition);
 
 // Admin successful petition management routes
 router.get("/successful-petitions", adminAuth, getSuccessfulPetitions);
 router.get("/successful-petitions/:id", adminAuth, getSuccessfulPetitionById);
-router.delete("/successful-petitions/:id", adminAuth, deleteSuccessfulPetition);
+router.route("/successful-petitions/:id").delete(adminAuth, deleteSuccessfulPetition).post(adminAuth, deleteSuccessfulPetition);
 
 // Admin comment management routes
 router.get("/petitions/:petitionId/comments", adminAuth, getCommentsByPetition);
-router.delete("/comments/:id", adminAuth, deleteComment);
+router.route("/comments/:id").delete(adminAuth, deleteComment).post(adminAuth, deleteComment);
 
 // Admin wallet management routes
 router.get("/wallets", adminAuth, async (req, res) => {
@@ -230,7 +234,7 @@ router.post("/categories", adminAuth, async (req, res) => {
   }
 });
 
-router.delete("/categories/:id", adminAuth, async (req, res) => {
+const deleteCategoryHandler = async (req, res) => {
   try {
     const Category = await import("../models/categoryModel.js").then(m => m.default);
     const category = await Category.findById(req.params.id);
@@ -242,7 +246,8 @@ router.delete("/categories/:id", adminAuth, async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
-});
+};
+router.route("/categories/:id").delete(adminAuth, deleteCategoryHandler).post(adminAuth, deleteCategoryHandler);
 
 // Admin progress update management routes
 router.get("/progress-updates", adminAuth, async (req, res) => {
@@ -277,7 +282,7 @@ router.get("/progress-updates", adminAuth, async (req, res) => {
   }
 });
 
-router.delete("/progress-updates/:id", adminAuth, async (req, res) => {
+const deleteProgressUpdateHandler = async (req, res) => {
   try {
     const ProgressUpdate = await import("../models/progressUpdateModel.js").then(m => m.default);
     const update = await ProgressUpdate.findByIdAndDelete(req.params.id);
@@ -285,12 +290,12 @@ router.delete("/progress-updates/:id", adminAuth, async (req, res) => {
     if (!update) {
       return res.status(404).json({ success: false, message: "Progress update not found" });
     }
-    
+
     res.status(200).json({ success: true, message: "Progress update deleted successfully" });
   } catch (error) {
-    console.error("Error deleting progress update:", error);
     res.status(500).json({ success: false, message: error.message });
   }
-});
+};
+router.route("/progress-updates/:id").delete(adminAuth, deleteProgressUpdateHandler).post(adminAuth, deleteProgressUpdateHandler);
 
 export default router;

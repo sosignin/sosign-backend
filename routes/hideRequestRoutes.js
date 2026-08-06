@@ -19,7 +19,7 @@ router.route("/check/:petitionId").get(protect, checkHideRequestStatus);
 // Admin routes
 router.route("/").get(adminAuth, getHideRequests);
 router.route("/stats").get(adminAuth, getHideRequestStats);
-router.route("/:id/approve").put(adminAuth, approveHideRequest);
-router.route("/:id/reject").put(adminAuth, rejectHideRequest);
+router.route("/:id/approve").put(adminAuth, approveHideRequest).post(adminAuth, approveHideRequest);
+router.route("/:id/reject").put(adminAuth, rejectHideRequest).post(adminAuth, rejectHideRequest);
 
 export default router;

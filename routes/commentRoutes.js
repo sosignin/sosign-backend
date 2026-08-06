@@ -24,8 +24,8 @@ const router = express.Router();
 
 // Admin routes (specific path with /admin/)
 router.get("/admin/unapproved", adminAuth, getUnapprovedComments);
-router.put("/admin/:id/approve", adminAuth, approveComment);
-router.delete("/admin/:id/reject", adminAuth, rejectComment);
+router.route("/admin/:id/approve").put(adminAuth, approveComment).post(adminAuth, approveComment);
+router.route("/admin/:id/reject").put(adminAuth, rejectComment).delete(adminAuth, rejectComment).post(adminAuth, rejectComment);
 
 // Petition creator routes for managing comments - EXPLICIT ROUTE
 router.get("/petition/:petitionId/pending", protect, getPendingCommentsForPetition);
@@ -41,8 +41,8 @@ router.get("/user/all", protect, getUserCommentsPaginated);
 router.post("/", protect, createComment);
 
 // Comment approval/rejection routes
-router.put("/:id/approve", protect, approveComment);
-router.delete("/:id/reject", protect, rejectComment);
+router.route("/:id/approve").put(protect, approveComment).post(protect, approveComment);
+router.route("/:id/reject").put(protect, rejectComment).delete(protect, rejectComment).post(protect, rejectComment);
 router.put("/:id/like", protect, toggleCommentLike);
 router.post("/:id/reply", protect, addReply);
 

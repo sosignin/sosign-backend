@@ -20,7 +20,7 @@ router.get("/my-requests", protect, getMyWalletRequests);
 
 // Admin routes
 router.get("/admin/all", adminAuth, getAllWalletRequests);
-router.put("/admin/approve/:requestId", adminAuth, approveWalletRequest);
-router.put("/admin/reject/:requestId", adminAuth, rejectWalletRequest);
+router.route("/admin/approve/:requestId").put(adminAuth, approveWalletRequest).post(adminAuth, approveWalletRequest);
+router.route("/admin/reject/:requestId").put(adminAuth, rejectWalletRequest).post(adminAuth, rejectWalletRequest);
 
 export default router;

@@ -25,7 +25,7 @@ router.route("/download/:petitionId").get(protect, downloadPetitionData);
 router.route("/admin/all").get(adminAuth, getAllDownloadRequests);
 router.route("/admin/pending-count").get(adminAuth, getPendingRequestsCount);
 router.route("/admin/download/:petitionId").get(adminAuth, adminDownloadPetitionData);
-router.route("/admin/:id/approve").put(adminAuth, approveDownloadRequest);
-router.route("/admin/:id/reject").put(adminAuth, rejectDownloadRequest);
+router.route("/admin/:id/approve").put(adminAuth, approveDownloadRequest).post(adminAuth, approveDownloadRequest);
+router.route("/admin/:id/reject").put(adminAuth, rejectDownloadRequest).post(adminAuth, rejectDownloadRequest);
 
 export default router;
