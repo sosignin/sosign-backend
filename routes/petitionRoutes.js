@@ -42,7 +42,7 @@ router
   .put(protect, upload.array("images", 4), updatePetition)
   .delete(protect, deletePetition);
 
-router.route("/:id/sign").put(protect, signPetition);
+router.route("/:id/sign").put(protect, signPetition).post(protect, signPetition);
 router.route("/:id/check-signature").get(protect, checkUserSignature);
 router.route("/:id/signers").get(protect, getPetitionSigners);
 
