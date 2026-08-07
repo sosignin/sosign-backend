@@ -25,6 +25,21 @@ const blogSchema = new mongoose.Schema(
             type: String,
             maxLength: [500, "Excerpt cannot exceed 500 characters"],
         },
+        metaTitle: {
+            type: String,
+            default: "",
+            maxLength: [200, "Meta title cannot exceed 200 characters"],
+        },
+        metaDescription: {
+            type: String,
+            default: "",
+            maxLength: [500, "Meta description cannot exceed 500 characters"],
+        },
+        metaKeywords: {
+            type: String,
+            default: "",
+            trim: true,
+        },
         author: {
             type: String,
             required: [true, "Author is required"],

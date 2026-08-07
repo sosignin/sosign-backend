@@ -105,7 +105,7 @@ const getBlogById = asyncHandler(async (req, res) => {
 // @route   POST /api/blogs
 // @access  Private/Admin
 const createBlog = asyncHandler(async (req, res) => {
-    const { title, titleFont, slug, content, excerpt, author, category, tags, isFeatured, isPublished } = req.body;
+    const { title, titleFont, slug, content, excerpt, metaTitle, metaDescription, metaKeywords, author, category, tags, isFeatured, isPublished } = req.body;
 
     if (!title || !content || !author) {
         res.status(400);
@@ -137,6 +137,9 @@ const createBlog = asyncHandler(async (req, res) => {
         slug: customSlug,
         content,
         excerpt: excerpt || "",
+        metaTitle: metaTitle || "",
+        metaDescription: metaDescription || "",
+        metaKeywords: metaKeywords || "",
         author,
         image: imageUrl,
         category: category || "General",
@@ -159,7 +162,7 @@ const updateBlog = asyncHandler(async (req, res) => {
         throw new Error("Blog not found");
     }
 
-    const { title, titleFont, slug, content, excerpt, author, category, tags, isFeatured, isPublished } = req.body;
+    const { title, titleFont, slug, content, excerpt, metaTitle, metaDescription, metaKeywords, author, category, tags, isFeatured, isPublished } = req.body;
 
     // Handle image from file upload (Cloudinary)
     let imageUrl = blog.image;
@@ -189,6 +192,9 @@ const updateBlog = asyncHandler(async (req, res) => {
     }
     blog.content = content || blog.content;
     blog.excerpt = excerpt !== undefined ? excerpt : blog.excerpt;
+    if (metaTitle !== undefined) blog.metaTitle = metaTitle;
+    if (metaDescription !== undefined) blog.metaDescription = metaDescription;
+    if (metaKeywords !== undefined) blog.metaKeywords = metaKeywords;
     blog.author = author || blog.author;
     blog.image = imageUrl;
     blog.category = category || blog.category;
