@@ -2,6 +2,7 @@ import asyncHandler from "express-async-handler";
 import generateToken from "../utils/generateToken.js";
 import User from "../models/userModel.js";
 import Wallet from "../models/walletModel.js";
+import Petition from "../models/petitionModel.js";
 import fetch from "node-fetch";
 
 // @desc    Auth user & get token
@@ -589,8 +590,6 @@ const changePassword = asyncHandler(async (req, res) => {
   });
 });
 
-export { authUser, registerUser, logoutUser, getUserProfile, updateUserProfile, authGoogleUser, forgotPassword, resetPassword, changePassword };
-
 // @desc    Get public user info by unique code
 // @route   GET /api/users/code/:code
 // @access  Public
@@ -616,4 +615,43 @@ const getUserByCode = asyncHandler(async (req, res) => {
   });
 });
 
-export { getUserByCode };
+// @desc    Get public user profile by ID
+// @route   GET /api/users/public/:id
+// @access  Public
+const getUserPublicProfile = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id).select(
+    "name designation bio profilePicture uniqueCode email mobileNumber socialLinks aadhaarKyc createdAt"
+  );
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  res.status(200).json({
+    _id: user._id,
+    name: user.name,
+    designation: user.designation || "Citizen",
+    bio: user.bio || "",
+    profilePicture: user.profilePicture || "",
+    uniqueCode: user.uniqueCode || "",
+    email: user.email || "",
+    mobileNumber: user.mobileNumber || "",
+    socialLinks: user.socialLinks || {},
+    isVerified: user.aadhaarKyc?.status === "verified",
+    createdAt: user.createdAt,
+  });
+});
+
+export {
+  authUser,
+  registerUser,
+  logoutUser,
+  getUserProfile,
+  updateUserProfile,
+  authGoogleUser,
+  forgotPassword,
+  resetPassword,
+  changePassword,
+  getUserByCode,
+  getUserPublicProfile,
+};

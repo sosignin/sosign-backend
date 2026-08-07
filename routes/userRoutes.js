@@ -7,6 +7,7 @@ import {
   updateUserProfile,
   authGoogleUser,
   getUserByCode,
+  getUserPublicProfile,
   forgotPassword,
   resetPassword,
   changePassword,
@@ -24,6 +25,7 @@ router.route("/profile")
   .put(protect, profileUpload.single("profilePicture"), updateUserProfile);
 router.post("/google-auth", authGoogleUser);
 router.get("/code/:code", getUserByCode);
+router.get("/public/:id", getUserPublicProfile);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
 router.put("/change-password", protect, changePassword);
