@@ -26,6 +26,11 @@ import {
   toggleSchoolStallMap,
   updatePetitionSlug,
 } from "../controllers/adminController.js";
+import {
+  getAdminPetitionReports,
+  updatePetitionReportStatus,
+  takeDownPetitionFromReport,
+} from "../controllers/petitionReportController.js";
 import { getSeoKeywords } from "../controllers/seoController.js";
 import { getGscStatus, getGscPerformance, inspectUrl, submitSitemap, publishToIndex } from "../controllers/gscController.js";
 import {
@@ -146,6 +151,11 @@ router.get("/petitions/:id", adminAuth, getPetitionById);
 router.get("/petitions/:id/signatures", adminAuth, getAdminPetitionSignatures);
 router.route("/petitions/:id").delete(adminAuth, deletePetition).post(adminAuth, deletePetition);
 
+// Admin petition objection reports routes
+router.get("/petition-reports", adminAuth, getAdminPetitionReports);
+router.route("/petition-reports/:id/status").put(adminAuth, updatePetitionReportStatus).post(adminAuth, updatePetitionReportStatus);
+router.route("/petition-reports/:id/takedown").put(adminAuth, takeDownPetitionFromReport).post(adminAuth, takeDownPetitionFromReport);
+
 // Admin successful petition management routes
 router.get("/successful-petitions", adminAuth, getSuccessfulPetitions);
 router.get("/successful-petitions/:id", adminAuth, getSuccessfulPetitionById);
@@ -165,10 +175,7 @@ router.get("/wallets", adminAuth, async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    // Get total count
     const totalWallets = await Wallet.countDocuments();
-
-    // Get wallets with user info
     const wallets = await Wallet.find()
       .populate("userId", "name email mobileNumber uniqueCode")
       .sort({ balance: -1 })
@@ -176,90 +183,29 @@ router.get("/wallets", adminAuth, async (req, res) => {
       .limit(limit)
       .lean();
 
-    const totalPages = Math.ceil(totalWallets / limit);
-
     res.status(200).json({
       success: true,
       wallets,
       currentPage: page,
-      totalPages,
+      totalPages: Math.ceil(totalWallets / limit),
       totalWallets,
       limit
     });
   } catch (error) {
-    console.error("Error fetching wallets:", error);
+    console.error("Error fetching admin wallets:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
-
-// Admin category management routes
-router.get("/categories", adminAuth, async (req, res) => {
-  try {
-    const Category = await import("../models/categoryModel.js").then(m => m.default);
-    const categories = await Category.find({}).sort({ isDefault: -1, name: 1 }).lean();
-    res.status(200).json({ success: true, categories });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-router.post("/categories", adminAuth, async (req, res) => {
-  try {
-    const { name, icon } = req.body;
-    if (!name || name.trim().length === 0) {
-      return res.status(400).json({ success: false, message: "Category name is required" });
-    }
-    if (name.trim().length > 15) {
-      return res.status(400).json({ success: false, message: "Category name can be up to 15 characters only" });
-    }
-    const Category = await import("../models/categoryModel.js").then(m => m.default);
-    
-    // Check if category already exists (case-insensitive)
-    const existingCategory = await Category.findOne({
-      name: { $regex: new RegExp(`^${name.trim()}$`, 'i') }
-    });
-    if (existingCategory) {
-      return res.status(400).json({ success: false, message: "A category with this name already exists" });
-    }
-
-    const category = await Category.create({
-      name: name.trim(),
-      icon: icon || null,
-      isDefault: false
-    });
-
-    res.status(201).json({ success: true, message: "Category created successfully", category });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-const deleteCategoryHandler = async (req, res) => {
-  try {
-    const Category = await import("../models/categoryModel.js").then(m => m.default);
-    const category = await Category.findById(req.params.id);
-    if (!category) {
-      return res.status(404).json({ success: false, message: "Category not found" });
-    }
-    await Category.findByIdAndDelete(req.params.id);
-    res.status(200).json({ success: true, message: "Category deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-router.route("/categories/:id").delete(adminAuth, deleteCategoryHandler).post(adminAuth, deleteCategoryHandler);
 
 // Admin progress update management routes
 router.get("/progress-updates", adminAuth, async (req, res) => {
   try {
     const ProgressUpdate = await import("../models/progressUpdateModel.js").then(m => m.default);
-    
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
     const totalUpdates = await ProgressUpdate.countDocuments();
-    
     const updates = await ProgressUpdate.find()
       .populate("author", "name email profilePicture")
       .populate("petition", "title")
