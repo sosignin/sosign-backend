@@ -244,4 +244,17 @@ const deleteProgressUpdateHandler = async (req, res) => {
 };
 router.route("/progress-updates/:id").delete(adminAuth, deleteProgressUpdateHandler).post(adminAuth, deleteProgressUpdateHandler);
 
+import {
+  getAdminClaims,
+  approveClaim,
+  rejectClaim,
+} from "../controllers/requestedSignatureClaimController.js";
+
+// Requested Signature Verification Claims admin routes
+router.get("/requested-signature-claims", adminAuth, getAdminClaims);
+router.put("/requested-signature-claims/:claimId/approve", adminAuth, approveClaim);
+router.post("/requested-signature-claims/:claimId/approve", adminAuth, approveClaim);
+router.put("/requested-signature-claims/:claimId/reject", adminAuth, rejectClaim);
+router.post("/requested-signature-claims/:claimId/reject", adminAuth, rejectClaim);
+
 export default router;

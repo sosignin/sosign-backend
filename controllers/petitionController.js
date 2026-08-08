@@ -664,19 +664,25 @@ const getPetitionById = asyncHandler(async (req, res) => {
             return false;
           });
 
+          const isSigned = rs.isVerifiedSigned || !!matchedUser;
+
           return {
             _id: rs._id,
             name: rs.name,
             email: rs.email,
             designation: rs.designation,
-            hasSigned: !!matchedUser,
+            hasSigned: isSigned,
+            isVerifiedSigned: !!rs.isVerifiedSigned,
             signedBy: matchedUser ? {
               _id: matchedUser._id,
               name: matchedUser.name,
               designation: matchedUser.designation,
               profilePicture: matchedUser.profilePicture,
               uniqueCode: matchedUser.uniqueCode,
-            } : null
+            } : (rs.isVerifiedSigned ? {
+              name: rs.name,
+              designation: rs.designation,
+            } : null)
           };
         });
       } else {
@@ -685,8 +691,12 @@ const getPetitionById = asyncHandler(async (req, res) => {
           name: rs.name,
           email: rs.email,
           designation: rs.designation,
-          hasSigned: false,
-          signedBy: null
+          hasSigned: !!rs.isVerifiedSigned,
+          isVerifiedSigned: !!rs.isVerifiedSigned,
+          signedBy: rs.isVerifiedSigned ? {
+            name: rs.name,
+            designation: rs.designation,
+          } : null
         }));
       }
     }

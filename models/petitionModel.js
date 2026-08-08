@@ -36,6 +36,9 @@ const petitionSchema = mongoose.Schema(
         name: { type: String, required: true },
         email: { type: String },
         designation: { type: String }, // e.g. Politician, Celebrity
+        isVerifiedSigned: { type: Boolean, default: false },
+        verifiedSignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        verifiedClaimId: { type: mongoose.Schema.Types.ObjectId, ref: 'RequestedSignatureClaim' },
       },
     ],
     country: {
