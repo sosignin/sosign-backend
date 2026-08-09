@@ -22,12 +22,15 @@ router.post("/login", authUser);
 router.post("/logout", logoutUser);
 router.route("/profile")
   .get(protect, getUserProfile)
-  .put(protect, profileUpload.single("profilePicture"), updateUserProfile);
+  .put(protect, profileUpload.single("profilePicture"), updateUserProfile)
+  .post(protect, profileUpload.single("profilePicture"), updateUserProfile);
 router.post("/google-auth", authGoogleUser);
 router.get("/code/:code", getUserByCode);
 router.get("/public/:id", getUserPublicProfile);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
-router.put("/change-password", protect, changePassword);
+router.route("/change-password")
+  .put(protect, changePassword)
+  .post(protect, changePassword);
 
 export default router;
