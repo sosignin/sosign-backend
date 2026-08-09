@@ -8,6 +8,8 @@ import generateUserToken from "../utils/generateToken.js";
 import Plan from "../models/planModel.js";
 import { triggerRevalidation } from "../utils/revalidateUtils.js";
 import Notification from "../models/notificationModel.js";
+import Visitor from "../models/visitorModel.js";
+import Traffic from "../models/trafficModel.js";
 
 const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;
 
@@ -354,11 +356,46 @@ export const getAdminStats = async (req, res) => {
       createdAt: { $gte: thirtyDaysAgo }
     });
 
+    // Calculate website traffic metrics
+    const todayDate = new Date().toISOString().split("T")[0];
+    const currentMonthPrefix = todayDate.substring(0, 7);
+
+    const trafficDoc = await Traffic.findOne({ key: "global_traffic" });
+    const totalPageViews = trafficDoc?.totalPageViews || 0;
+
+    const todayUniqueVisitors = await Visitor.countDocuments({ date: todayDate });
+
+    const todayPageViewsResult = await Visitor.aggregate([
+      { $match: { date: todayDate } },
+      { $group: { _id: null, count: { $sum: "$pageViews" } } },
+    ]);
+    const todayPageViews = todayPageViewsResult[0]?.count || 0;
+
+    const monthVisitorsResult = await Visitor.aggregate([
+      { $match: { date: { $regex: `^${currentMonthPrefix}` } } },
+      { $group: { _id: "$ip" } },
+      { $count: { total: 1 } },
+    ]);
+    const monthUniqueVisitors = monthVisitorsResult[0]?.total || 0;
+
+    const totalUniqueIpsResult = await Visitor.aggregate([
+      { $group: { _id: "$ip" } },
+      { $count: { total: 1 } },
+    ]);
+    const totalUniqueVisitors = totalUniqueIpsResult[0]?.total || 0;
+
     const stats = {
       totalPetitions,
       totalSignatures,
       totalUsers,
       victories: successfulPetitions, // Count from SuccessfulPetition model
+      traffic: {
+        totalPageViews,
+        todayUniqueVisitors,
+        todayPageViews,
+        monthUniqueVisitors,
+        totalUniqueVisitors,
+      },
       breakdown: {
         activePetitions,
         successfulPetitions,
