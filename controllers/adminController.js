@@ -371,18 +371,11 @@ export const getAdminStats = async (req, res) => {
     ]);
     const todayPageViews = todayPageViewsResult[0]?.count || 0;
 
-    const monthVisitorsResult = await Visitor.aggregate([
-      { $match: { date: { $regex: `^${currentMonthPrefix}` } } },
-      { $group: { _id: "$ip" } },
-      { $count: { total: 1 } },
-    ]);
-    const monthUniqueVisitors = monthVisitorsResult[0]?.total || 0;
+    const monthUniqueVisitorsList = await Visitor.distinct("ip", { date: { $regex: `^${currentMonthPrefix}` } });
+    const monthUniqueVisitors = monthUniqueVisitorsList ? monthUniqueVisitorsList.length : 0;
 
-    const totalUniqueIpsResult = await Visitor.aggregate([
-      { $group: { _id: "$ip" } },
-      { $count: { total: 1 } },
-    ]);
-    const totalUniqueVisitors = totalUniqueIpsResult[0]?.total || 0;
+    const totalUniqueVisitorsList = await Visitor.distinct("ip");
+    const totalUniqueVisitors = totalUniqueVisitorsList ? totalUniqueVisitorsList.length : 0;
 
     const stats = {
       totalPetitions,

@@ -65,19 +65,12 @@ export const getTrafficStats = async (req, res) => {
     const todayPageViews = todayPageViewsResult[0]?.count || 0;
 
     // 4. This Month's Unique Visitors
-    const monthVisitorsResult = await Visitor.aggregate([
-      { $match: { date: { $regex: `^${currentMonthPrefix}` } } },
-      { $group: { _id: "$ip" } },
-      { $count: { total: 1 } },
-    ]);
-    const monthUniqueVisitors = monthVisitorsResult[0]?.total || 0;
+    const monthUniqueVisitorsList = await Visitor.distinct("ip", { date: { $regex: `^${currentMonthPrefix}` } });
+    const monthUniqueVisitors = monthUniqueVisitorsList ? monthUniqueVisitorsList.length : 0;
 
     // 5. Total All-time Unique Visitors (Distinct IPs)
-    const totalUniqueIpsResult = await Visitor.aggregate([
-      { $group: { _id: "$ip" } },
-      { $count: { total: 1 } },
-    ]);
-    const totalUniqueVisitors = totalUniqueIpsResult[0]?.total || 0;
+    const totalUniqueVisitorsList = await Visitor.distinct("ip");
+    const totalUniqueVisitors = totalUniqueVisitorsList ? totalUniqueVisitorsList.length : 0;
 
     res.status(200).json({
       success: true,
