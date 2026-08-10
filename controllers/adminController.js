@@ -10,6 +10,7 @@ import { triggerRevalidation } from "../utils/revalidateUtils.js";
 import Notification from "../models/notificationModel.js";
 import Visitor from "../models/visitorModel.js";
 import Traffic from "../models/trafficModel.js";
+import Blog from "../models/blogModel.js";
 
 const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;
 
@@ -99,7 +100,7 @@ export const adminLogout = (req, res) => {
 export const getUsers = async (req, res) => {
   try {
     console.log("🔍 Fetching users with billing data...");
-    const users = await User.find({}, "name email mobileNumber createdAt isSuspended plan freeChecksRemaining");
+    const users = await User.find({}, "name email mobileNumber createdAt isSuspended plan freeChecksRemaining isDummy bio aadhaarKyc");
     console.log(`👥 Found users: ${users.length}`);
 
     // Fetch wallet balances for all users in one query
@@ -377,6 +378,29 @@ export const getAdminStats = async (req, res) => {
     const totalUniqueVisitorsList = await Visitor.distinct("ip");
     const totalUniqueVisitors = totalUniqueVisitorsList ? totalUniqueVisitorsList.length : 0;
 
+    // Calculate total petition & blog views
+    const petitionViewsResult = await Petition.aggregate([
+      { $group: { _id: null, totalViews: { $sum: "$views" } } },
+    ]);
+    const totalPetitionViews = petitionViewsResult[0]?.totalViews || 0;
+
+    const blogViewsResult = await Blog.aggregate([
+      { $group: { _id: null, totalViews: { $sum: "$views" } } },
+    ]);
+    const totalBlogViews = blogViewsResult[0]?.totalViews || 0;
+
+    // Top viewed petitions
+    const topPetitionsByViews = await Petition.find({ approved: true })
+      .select("title slug views numberOfSignatures")
+      .sort({ views: -1 })
+      .limit(5);
+
+    // Top viewed blogs
+    const topBlogsByViews = await Blog.find({ isPublished: true })
+      .select("title slug views author category")
+      .sort({ views: -1 })
+      .limit(5);
+
     const stats = {
       totalPetitions,
       totalSignatures,
@@ -388,6 +412,13 @@ export const getAdminStats = async (req, res) => {
         todayPageViews,
         monthUniqueVisitors,
         totalUniqueVisitors,
+      },
+      contentViews: {
+        totalPetitionViews,
+        totalBlogViews,
+        totalCombinedViews: totalPetitionViews + totalBlogViews,
+        topPetitions: topPetitionsByViews,
+        topBlogs: topBlogsByViews,
       },
       breakdown: {
         activePetitions,
@@ -461,7 +492,7 @@ export const getVerifiedUsers = async (req, res) => {
           { "voterKyc.status": "verified" }
         ]
       },
-      "name email aadhaarKyc panKyc voterKyc mobileNumber createdAt"
+      "name email aadhaarKyc panKyc voterKyc mobileNumber createdAt isDummy bio"
     ).sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -497,6 +528,7 @@ export const createDummyUser = async (req, res) => {
       designation: designation || "Citizen",
       bio: bio || "Dummy account for petition operations",
       password: "dummy_password_12345", // dummy password
+      isDummy: true,
       aadhaarKyc: verifyAadhaar ? {
         status: "verified",
         maskedAadhaar: "XXXX-XXXX-" + Math.floor(1000 + Math.random() * 9000),

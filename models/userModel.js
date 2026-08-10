@@ -74,6 +74,10 @@ const userSchema = mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    isDummy: {
+      type: Boolean,
+      default: false,
+    },
     // Aadhaar KYC verification via image OCR
     aadhaarKyc: {
       status: {

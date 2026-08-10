@@ -100,6 +100,10 @@ const petitionSchema = mongoose.Schema(
       type: Number,
       default: 0,
     },
+    views: {
+      type: Number,
+      default: 0,
+    },
     targetSignatures: {
       type: Number,
       default: 0,

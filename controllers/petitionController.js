@@ -576,6 +576,9 @@ const getPetitionById = asyncHandler(async (req, res) => {
   }
 
   if (petition) {
+    // Increment petition views asynchronously
+    Petition.findByIdAndUpdate(petition._id, { $inc: { views: 1 } }).exec().catch(() => {});
+
     // Find notable signers (Celebrities, Politicians, NGOs, etc.)
     // We search across ALL signatures for this petition
     const notableKeywords = [
