@@ -44,21 +44,46 @@ const INITIAL_MAHARASHTRA_SCHOOLS = [
   { name: "Jain International School", city: "Solapur", address: "NH-9, Solapur", coordinates: [75.9064, 17.6599] },
 ];
 
-// Seed schools if empty
+// Seed schools & deduplicate approved seed records
 async function ensureSchoolsSeeded() {
-  const count = await School.countDocuments();
-  if (count === 0) {
-    const docs = INITIAL_MAHARASHTRA_SCHOOLS.map(s => ({
-      name: s.name,
-      city: s.city,
-      state: "Maharashtra",
-      address: s.address,
-      location: {
-        type: "Point",
-        coordinates: s.coordinates
-      }
-    }));
-    await School.insertMany(docs);
+  for (const s of INITIAL_MAHARASHTRA_SCHOOLS) {
+    const exists = await School.findOne({
+      name: { $regex: new RegExp(`^${s.name.trim()}$`, "i") },
+      city: { $regex: new RegExp(`^${s.city.trim()}$`, "i") },
+    });
+
+    if (!exists) {
+      await School.create({
+        name: s.name.trim(),
+        city: s.city.trim(),
+        state: "Maharashtra",
+        address: s.address,
+        location: {
+          type: "Point",
+          coordinates: s.coordinates,
+        },
+        status: "approved",
+        isApproved: true,
+      });
+    }
+  }
+
+  // Only remove duplicates from approved seed schools, never touch pending user requests
+  const approvedSchools = await School.find({ status: "approved" });
+  const seenKeys = new Set();
+  const duplicateIds = [];
+
+  for (const item of approvedSchools) {
+    const key = `${item.name.toLowerCase().trim()}_${item.city.toLowerCase().trim()}`;
+    if (seenKeys.has(key)) {
+      duplicateIds.push(item._id);
+    } else {
+      seenKeys.add(key);
+    }
+  }
+
+  if (duplicateIds.length > 0) {
+    await School.deleteMany({ _id: { $in: duplicateIds } });
   }
 }
 
@@ -67,7 +92,8 @@ async function ensureSchoolsSeeded() {
 // @access  Public
 export const getCities = asyncHandler(async (req, res) => {
   await ensureSchoolsSeeded();
-  const cities = await School.distinct("city", { state: "Maharashtra" });
+  const filter = { state: "Maharashtra", $or: [{ isApproved: true }, { status: "approved" }, { isApproved: { $exists: false } }] };
+  const cities = await School.distinct("city", filter);
   res.status(200).json({ cities: cities.sort() });
 });
 
@@ -77,13 +103,25 @@ export const getCities = asyncHandler(async (req, res) => {
 export const getSchoolsByCity = asyncHandler(async (req, res) => {
   await ensureSchoolsSeeded();
   const { city } = req.query;
-  const filter = { state: "Maharashtra" };
+  const filter = { state: "Maharashtra", $or: [{ isApproved: true }, { status: "approved" }, { isApproved: { $exists: false } }] };
   if (city) {
     filter.city = { $regex: new RegExp(`^${city.trim()}$`, "i") };
   }
 
-  const schools = await School.find(filter).sort({ name: 1 });
-  res.status(200).json({ schools });
+  const rawSchools = await School.find(filter).sort({ name: 1 });
+
+  // Deduplicate by lowercased name + city
+  const uniqueSchools = [];
+  const seenKeys = new Set();
+  for (const s of rawSchools) {
+    const key = `${s.name.toLowerCase().trim()}_${s.city.toLowerCase().trim()}`;
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      uniqueSchools.push(s);
+    }
+  }
+
+  res.status(200).json({ schools: uniqueSchools });
 });
 
 // @desc    Submit a junk food stall report (Signers only)
@@ -241,4 +279,95 @@ export const rejectStallReport = asyncHandler(async (req, res) => {
   await report.save();
 
   res.status(200).json({ message: "Stall report rejected", report });
+});
+
+// @desc    Signer: Submit a request for missing city & school
+// @route   POST /api/stall-reports/schools/request
+// @access  Private (Signer)
+export const requestNewSchool = asyncHandler(async (req, res) => {
+  const { name, city, address, latitude, longitude } = req.body;
+
+  if (!name || !city) {
+    res.status(400);
+    throw new Error("Please provide school name and city.");
+  }
+
+  const defaultCoords = [75.7139, 19.7515]; // Default Maharashtra center
+  let shopLat = latitude ? parseFloat(latitude) : defaultCoords[1];
+  let shopLng = longitude ? parseFloat(longitude) : defaultCoords[0];
+
+  if (isNaN(shopLat)) shopLat = defaultCoords[1];
+  if (isNaN(shopLng)) shopLng = defaultCoords[0];
+
+  const newSchool = await School.create({
+    name: name.trim(),
+    city: city.trim(),
+    state: "Maharashtra",
+    address: address ? address.trim() : city.trim(),
+    location: {
+      type: "Point",
+      coordinates: [shopLng, shopLat],
+    },
+    status: "pending",
+    isApproved: false,
+    requestedBy: req.user?._id,
+  });
+
+  res.status(201).json({
+    message: "School and city request submitted successfully. Admin will review and approve.",
+    school: newSchool,
+  });
+});
+
+// @desc    Admin: Get pending school & city requests
+// @route   GET /api/stall-reports/admin/school-requests
+// @access  Admin
+export const getPendingSchoolRequests = asyncHandler(async (req, res) => {
+  const { status } = req.query;
+  const filter = {};
+  if (status && status !== "all") {
+    filter.status = status;
+  } else if (!status) {
+    filter.status = "pending";
+  }
+
+  const schools = await School.find(filter)
+    .populate("requestedBy", "name email mobileNumber")
+    .sort({ createdAt: -1 });
+
+  res.status(200).json({ schools });
+});
+
+// @desc    Admin: Approve school & city request
+// @route   PUT /api/stall-reports/admin/school-requests/:id/approve
+// @access  Admin
+export const approveSchoolRequest = asyncHandler(async (req, res) => {
+  const school = await School.findById(req.params.id);
+  if (!school) {
+    res.status(404);
+    throw new Error("School request not found");
+  }
+
+  school.status = "approved";
+  school.isApproved = true;
+  await school.save();
+
+  res.status(200).json({ message: "School and city request approved successfully!", school });
+});
+
+// @desc    Admin: Reject school & city request
+// @route   PUT /api/stall-reports/admin/school-requests/:id/reject
+// @access  Admin
+export const rejectSchoolRequest = asyncHandler(async (req, res) => {
+  const school = await School.findById(req.params.id);
+  if (!school) {
+    res.status(404);
+    throw new Error("School request not found");
+  }
+
+  school.status = "rejected";
+  school.isApproved = false;
+  await school.save();
+
+  res.status(200).json({ message: "School request rejected", school });
 });

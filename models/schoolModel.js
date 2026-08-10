@@ -30,8 +30,23 @@ const schoolSchema = new mongoose.Schema(
       },
       coordinates: {
         type: [Number], // [longitude, latitude]
-        required: true,
+        default: [75.7139, 19.7515], // Default Maharashtra state center
       },
+    },
+    status: {
+      type: String,
+      enum: ["approved", "pending", "rejected"],
+      default: "approved",
+      index: true,
+    },
+    isApproved: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
+    requestedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
     },
   },
   { timestamps: true }
