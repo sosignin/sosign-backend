@@ -365,9 +365,88 @@ export const rejectSchoolRequest = asyncHandler(async (req, res) => {
     throw new Error("School request not found");
   }
 
-  school.status = "rejected";
-  school.isApproved = false;
-  await school.save();
-
   res.status(200).json({ message: "School request rejected", school });
+});
+
+// @desc    Public / Vendor: Submit a defense/dispute request for a reported stall
+// @route   POST /api/stall-reports/:id/defend
+// @access  Public
+export const submitStallDefense = asyncHandler(async (req, res) => {
+  const { vendorName, vendorContact, reason, explanation, newGoogleMapsUrl } = req.body;
+
+  if (!vendorName || !reason || !explanation) {
+    res.status(400);
+    throw new Error("Please provide vendor name, reason, and explanation.");
+  }
+
+  const report = await StallReport.findById(req.params.id);
+  if (!report) {
+    res.status(404);
+    throw new Error("Stall report not found.");
+  }
+
+  if (!report.defenses) {
+    report.defenses = [];
+  }
+
+  report.defenses.push({
+    vendorName: vendorName.trim(),
+    vendorContact: vendorContact ? vendorContact.trim() : "",
+    reason,
+    explanation: explanation.trim(),
+    newGoogleMapsUrl: newGoogleMapsUrl ? newGoogleMapsUrl.trim() : "",
+    status: "pending",
+    submittedAt: new Date(),
+  });
+
+  await report.save();
+
+  res.status(201).json({
+    message: "Your defense/dispute request has been submitted successfully to the admin for review.",
+    report,
+  });
+});
+
+// @desc    Admin: Get all stall reports with vendor defenses/disputes
+// @route   GET /api/stall-reports/admin/disputes
+// @access  Admin
+export const getStallDisputes = asyncHandler(async (req, res) => {
+  const reports = await StallReport.find({ "defenses.0": { $exists: true } })
+    .populate("schoolId", "name city address")
+    .sort({ updatedAt: -1 });
+
+  res.status(200).json({ reports });
+});
+
+// @desc    Admin: Resolve or Dismiss a vendor defense/dispute
+// @route   PUT /api/stall-reports/admin/disputes/:reportId/:defenseId/resolve
+// @access  Admin
+export const resolveStallDispute = asyncHandler(async (req, res) => {
+  const { action, adminNotes } = req.body; // action: 'approve_resolve' or 'dismiss'
+  const { reportId, defenseId } = req.params;
+
+  const report = await StallReport.findById(reportId);
+  if (!report) {
+    res.status(404);
+    throw new Error("Stall report not found.");
+  }
+
+  const defense = report.defenses.id(defenseId);
+  if (!defense) {
+    res.status(404);
+    throw new Error("Defense request not found.");
+  }
+
+  if (action === "approve_resolve") {
+    defense.status = "approved_resolved";
+    // Mark the stall report as rejected / resolved so it is no longer flagged as an active violation on map
+    report.status = "rejected";
+    report.rejectionReason = `Resolved via Vendor Defense: ${defense.reason} - ${adminNotes || "Stall shifted or >50m away"}`;
+  } else {
+    defense.status = "reviewed_dismissed";
+  }
+
+  await report.save();
+
+  res.status(200).json({ message: `Vendor dispute ${action === "approve_resolve" ? "approved & stall report resolved" : "dismissed"}.`, report });
 });

@@ -58,6 +58,25 @@ const stallReportSchema = new mongoose.Schema(
     rejectionReason: {
       type: String,
     },
+    defenses: [
+      {
+        vendorName: { type: String, required: true, trim: true },
+        vendorContact: { type: String, trim: true },
+        reason: {
+          type: String,
+          enum: ["not_within_50m", "stall_shifted", "closed_down", "has_permission", "other"],
+          required: true,
+        },
+        explanation: { type: String, required: true, trim: true },
+        newGoogleMapsUrl: { type: String, trim: true },
+        status: {
+          type: String,
+          enum: ["pending", "reviewed_dismissed", "approved_resolved"],
+          default: "pending",
+        },
+        submittedAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true }
 );
