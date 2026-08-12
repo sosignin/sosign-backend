@@ -39,6 +39,7 @@ import stallReportRoutes from "./routes/stallReportRoutes.js";
 import newsletterRoutes from "./routes/newsletterRoutes.js";
 import petitionReportRoutes from "./routes/petitionReportRoutes.js";
 import trafficRoutes from "./routes/trafficRoutes.js";
+import contactRoutes from "./routes/contactRoutes.js";
 
 
 // Middleware
@@ -262,6 +263,7 @@ app.use("/api/faqs", faqRoutes);
 app.use("/api/newsletters", newsletterRoutes);
 app.use("/api/reports", petitionReportRoutes);
 app.use("/api/traffic", trafficRoutes);
+app.use("/api/contact", contactRoutes);
 
 
 // Root endpoint

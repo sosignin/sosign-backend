@@ -43,17 +43,24 @@ router.post("/", protect, createComment);
 // Comment approval/rejection routes
 router.route("/:id/approve").put(protect, approveComment).post(protect, approveComment);
 router.route("/:id/reject").put(protect, rejectComment).delete(protect, rejectComment).post(protect, rejectComment);
-router.put("/:id/like", protect, toggleCommentLike);
+router.route("/:id/like").put(protect, toggleCommentLike).post(protect, toggleCommentLike);
 router.post("/:id/reply", protect, addReply);
 
 // Reply routes
-router.put("/:commentId/replies/:replyId/approve", protect, approveReply);
-router.delete("/:commentId/replies/:replyId/reject", protect, rejectReply);
-router.put("/:commentId/replies/:replyId", protect, updateReply);
-router.delete("/:commentId/replies/:replyId", protect, deleteReply);
+router.route("/:commentId/replies/:replyId/approve").put(protect, approveReply).post(protect, approveReply);
+router.route("/:commentId/replies/:replyId/reject").delete(protect, rejectReply).post(protect, rejectReply);
+router.route("/:commentId/replies/:replyId").put(protect, updateReply).delete(protect, deleteReply).post(protect, updateReply);
 
 // Generic ID-based routes (MUST come last)
-router.put("/:id", protect, updateComment);
-router.delete("/:id", protect, deleteComment);
+router.route("/:id")
+  .put(protect, updateComment)
+  .delete(protect, deleteComment)
+  .post(protect, (req, res, next) => {
+    const override = req.headers["x-http-method-override"] || req.body?._method || req.query?._method;
+    if (override === "DELETE") {
+      return deleteComment(req, res, next);
+    }
+    return updateComment(req, res, next);
+  });
 
 export default router;

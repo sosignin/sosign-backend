@@ -53,8 +53,19 @@ export function checkAbusiveContent(text) {
     return { hasAbusive: false, foundWords: [], warning: "" };
   }
 
-  const normalized = text.toLowerCase();
+  // Strip HTML tags and common HTML entities (for rich text content)
+  const plainText = text
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+
+  const normalized = plainText.toLowerCase();
+
+  // Extract individual words/tokens using standard separators
   const words = normalized.split(/[\s,.\/\\#!$%\^&\*;:{}=\-_`~()"'?<>\[\]]+/);
+  const wordsSet = new Set(words.filter(Boolean));
 
   const found = new Set();
 
@@ -65,19 +76,22 @@ export function checkAbusiveContent(text) {
     if (pLower.includes(" ") || pLower.includes(".")) {
       const cleanPattern = pLower.replace(/\./g, "");
       const cleanText = normalized.replace(/\./g, "");
-      if (cleanText.includes(pLower) || cleanText.includes(cleanPattern)) {
+      const escaped = cleanPattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const phraseRegex = new RegExp(`(?:^|\\b)${escaped}(?:$|\\b)`, "i");
+      if (phraseRegex.test(cleanText)) {
         found.add(pattern);
       }
     } else {
-      // Short words (3 letters or less) require exact token match to avoid false positives (e.g. "bc" in "because")
-      if (pLower.length <= 3) {
-        if (words.includes(pLower)) {
-          found.add(pattern);
-        }
-      } else {
-        // Substring match for distinctive longer abusive words
-        if (normalized.includes(pLower)) {
-          found.add(pattern);
+      // Check exact token match first for single words
+      if (wordsSet.has(pLower)) {
+        found.add(pattern);
+      } else if (pLower.length > 5) {
+        // For longer compound abusive words, check whole word boundaries or Devanagari script token match
+        if (/^[a-z0-9]+$/i.test(pLower)) {
+          const wordRegex = new RegExp(`\\b${pLower.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+          if (wordRegex.test(normalized)) {
+            found.add(pattern);
+          }
         }
       }
     }
