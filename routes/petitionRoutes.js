@@ -40,6 +40,7 @@ router
   .route("/:id")
   .get(setCache(60), getPetitionById) // Cache details for 60s
   .put(protect, upload.array("images", 4), updatePetition)
+  .post(protect, upload.array("images", 4), updatePetition)
   .delete(protect, deletePetition);
 
 import { submitClaim } from "../controllers/requestedSignatureClaimController.js";
