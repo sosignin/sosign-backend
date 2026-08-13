@@ -170,6 +170,12 @@ const petitionSchema = mongoose.Schema(
       min: 0,
       max: 100
     },
+    // Optional reference to a mother petition on the same topic
+    motherPetition: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Petition",
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -212,6 +218,7 @@ petitionSchema.index({ approved: 1, hidden: 1, numberOfSignatures: -1 }); // For
 petitionSchema.index({ approved: 1, hidden: 1, categories: 1 }); // For filtering by category
 petitionSchema.index({ approved: 1, hidden: 1, country: 1 }); // For filtering by country
 petitionSchema.index({ "petitionStarter.user": 1 }); // For finding user's petitions
+petitionSchema.index({ motherPetition: 1 }); // For querying sub-petitions
 
 const Petition = mongoose.model("Petition", petitionSchema);
 

@@ -39,6 +39,7 @@ const createPetition = asyncHandler(async (req, res) => {
     constituencySettings,
     signingRequirements,
     socialLinks,
+    motherPetition,
     aadhaarVerificationToken,
     aadharVerificationToken,
     panVerificationToken,
@@ -344,6 +345,7 @@ const createPetition = asyncHandler(async (req, res) => {
     constituencySettings: parsedConstituencySettings,
     signingRequirements: parsedSigningRequirements,
     socialLinks: parsedSocialLinks,
+    motherPetition: motherPetition || null,
     approved: false, // Explicitly set to false for approval workflow
   });
 
@@ -558,6 +560,7 @@ const getPetitionById = asyncHandler(async (req, res) => {
         "petitionStarter.user",
         "name email designation uniqueCode profilePicture",
       )
+      .populate("motherPetition", "title slug petitionDetails.image numberOfSignatures approved hidden")
       .select({ signatures: { $slice: -20 } })
       .populate("signatures.user", "name email uniqueCode designation profilePicture")
       .populate("signatures.referral.owner", "name email uniqueCode");
@@ -570,6 +573,7 @@ const getPetitionById = asyncHandler(async (req, res) => {
         "petitionStarter.user",
         "name email designation uniqueCode profilePicture",
       )
+      .populate("motherPetition", "title slug petitionDetails.image numberOfSignatures approved hidden")
       .select({ signatures: { $slice: -20 } })
       .populate("signatures.user", "name email uniqueCode designation profilePicture")
       .populate("signatures.referral.owner", "name email uniqueCode");
@@ -704,10 +708,44 @@ const getPetitionById = asyncHandler(async (req, res) => {
       }
     }
 
-    // Convert Mongoose document to plain object to add custom field
+    // Fetch active sub-petitions for this petition if it acts as a Mother Petition
+    const subPetitions = await Petition.find({
+      motherPetition: petition._id,
+      approved: true,
+      hidden: { $ne: true }
+    })
+      .select("title slug petitionDetails.image numberOfSignatures petitionStarter createdAt")
+      .sort({ numberOfSignatures: -1 })
+      .lean();
+
+    // Calculate combined signatures across mother and linked sub-petitions
+    let combinedSignatures = petition.numberOfSignatures || 0;
+
+    if (petition.motherPetition) {
+      const motherId = petition.motherPetition._id || petition.motherPetition;
+      const [motherDoc, siblingChildPetitions] = await Promise.all([
+        Petition.findById(motherId).select("numberOfSignatures").lean(),
+        Petition.find({
+          motherPetition: motherId,
+          approved: true,
+          hidden: { $ne: true }
+        }).select("numberOfSignatures").lean()
+      ]);
+
+      const motherSigs = motherDoc?.numberOfSignatures || 0;
+      const childSigsSum = siblingChildPetitions.reduce((sum, p) => sum + (p.numberOfSignatures || 0), 0);
+      combinedSignatures = motherSigs + childSigsSum;
+    } else if (subPetitions && subPetitions.length > 0) {
+      const childSigsSum = subPetitions.reduce((sum, p) => sum + (p.numberOfSignatures || 0), 0);
+      combinedSignatures = (petition.numberOfSignatures || 0) + childSigsSum;
+    }
+
+    // Convert Mongoose document to plain object to add custom fields
     const petitionObj = petition.toObject();
     petitionObj.notableSigners = notableSigners;
     petitionObj.requestedSignersStatus = requestedSignersStatus;
+    petitionObj.subPetitions = subPetitions;
+    petitionObj.combinedSignatures = combinedSignatures;
 
     res.status(200).json(petitionObj);
   } else {

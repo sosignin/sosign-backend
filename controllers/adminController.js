@@ -182,6 +182,7 @@ export const getUnapprovedPetitions = async (req, res) => {
       ]
     })
       .populate("petitionStarter.user", "name email")
+      .populate("motherPetition", "title slug petitionDetails.image")
       .sort({ updatedAt: -1, createdAt: -1 });
     res.status(200).json({ petitions });
   } catch (error) {
@@ -195,6 +196,7 @@ export const getRejectedPetitions = async (req, res) => {
   try {
     const petitions = await Petition.find({ status: "rejected" })
       .populate("petitionStarter.user", "name email")
+      .populate("motherPetition", "title slug petitionDetails.image")
       .sort({ updatedAt: -1 });
     res.status(200).json({ petitions });
   } catch (error) {
