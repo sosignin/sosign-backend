@@ -365,7 +365,11 @@ export const rejectSchoolRequest = asyncHandler(async (req, res) => {
     throw new Error("School request not found");
   }
 
-  res.status(200).json({ message: "School request rejected", school });
+  school.status = "rejected";
+  school.isApproved = false;
+  await school.save();
+
+  res.status(200).json({ message: "School request rejected successfully!", school });
 });
 
 // @desc    Public / Vendor: Submit a defense/dispute request for a reported stall
