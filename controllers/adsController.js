@@ -4,6 +4,9 @@ import Ad from "../models/adsModel.js";
 // @desc    Get all ads (admin)
 // @route   GET /api/ads
 // @access  Public/Admin
+// @desc    Get all ads (admin)
+// @route   GET /api/ads
+// @access  Public/Admin
 const getAds = asyncHandler(async (req, res) => {
     const { position, active } = req.query;
 
@@ -19,10 +22,20 @@ const getAds = asyncHandler(async (req, res) => {
 
     const ads = await Ad.find(query).sort({ priority: -1, createdAt: -1 });
 
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const formattedAds = ads.map((ad) => {
+        const adObj = ad.toObject();
+        if (adObj.image && !adObj.image.startsWith("http://") && !adObj.image.startsWith("https://")) {
+            const cleanPath = adObj.image.replace(/\\/g, "/").replace(/^\//, "");
+            adObj.image = `${baseUrl}/${cleanPath}`;
+        }
+        return adObj;
+    });
+
     res.json({
         success: true,
-        count: ads.length,
-        ads,
+        count: formattedAds.length,
+        ads: formattedAds,
     });
 });
 
@@ -36,30 +49,47 @@ const getActiveAds = asyncHandler(async (req, res) => {
 
     let query = {
         isActive: true,
-        startDate: { $lte: now },
-        $or: [
-            { endDate: { $exists: false } },
-            { endDate: null },
-            { endDate: { $gte: now } },
-        ],
     };
 
     if (position) {
         query.position = position;
     }
 
-    const ads = await Ad.find(query).sort({ priority: -1, createdAt: -1 });
+    const allAds = await Ad.find(query).sort({ priority: -1, createdAt: -1 });
+
+    // Filter by dates safely in JavaScript
+    const validAds = allAds.filter((ad) => {
+        if (ad.startDate && new Date(ad.startDate) > now) {
+            return false;
+        }
+        if (ad.endDate && new Date(ad.endDate) < now) {
+            return false;
+        }
+        return true;
+    });
+
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const formattedAds = validAds.map((ad) => {
+        const adObj = ad.toObject();
+        if (adObj.image && !adObj.image.startsWith("http://") && !adObj.image.startsWith("https://")) {
+            const cleanPath = adObj.image.replace(/\\/g, "/").replace(/^\//, "");
+            adObj.image = `${baseUrl}/${cleanPath}`;
+        }
+        return adObj;
+    });
 
     // Increment impressions
-    await Ad.updateMany(
-        { _id: { $in: ads.map((ad) => ad._id) } },
-        { $inc: { impressions: 1 } }
-    );
+    if (validAds.length > 0) {
+        Ad.updateMany(
+            { _id: { $in: validAds.map((ad) => ad._id) } },
+            { $inc: { impressions: 1 } }
+        ).catch((e) => console.error("Ad impression update error:", e));
+    }
 
     res.json({
         success: true,
-        count: ads.length,
-        ads,
+        count: formattedAds.length,
+        ads: formattedAds,
     });
 });
 

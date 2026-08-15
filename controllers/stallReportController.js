@@ -338,7 +338,7 @@ export const getPendingSchoolRequests = asyncHandler(async (req, res) => {
   res.status(200).json({ schools });
 });
 
-// @desc    Admin: Approve school & city request
+// @desc    Admin: Approve school & city request (with optional location/details update)
 // @route   PUT /api/stall-reports/admin/school-requests/:id/approve
 // @access  Admin
 export const approveSchoolRequest = asyncHandler(async (req, res) => {
@@ -348,11 +348,65 @@ export const approveSchoolRequest = asyncHandler(async (req, res) => {
     throw new Error("School request not found");
   }
 
+  const { name, city, address, latitude, longitude } = req.body || {};
+
+  if (name && name.trim()) school.name = name.trim();
+  if (city && city.trim()) school.city = city.trim();
+  if (address !== undefined) school.address = address.trim();
+
+  if (latitude !== undefined && longitude !== undefined) {
+    const lat = parseFloat(latitude);
+    const lng = parseFloat(longitude);
+    if (!isNaN(lat) && !isNaN(lng)) {
+      school.location = {
+        type: "Point",
+        coordinates: [lng, lat],
+      };
+    }
+  }
+
   school.status = "approved";
   school.isApproved = true;
   await school.save();
 
   res.status(200).json({ message: "School and city request approved successfully!", school });
+});
+
+// @desc    Admin: Update school details & exact GPS coordinates
+// @route   PUT /api/stall-reports/admin/school-requests/:id
+// @access  Admin
+export const updateSchoolRequest = asyncHandler(async (req, res) => {
+  const school = await School.findById(req.params.id);
+  if (!school) {
+    res.status(404);
+    throw new Error("School request not found");
+  }
+
+  const { name, city, address, latitude, longitude, status } = req.body || {};
+
+  if (name && name.trim()) school.name = name.trim();
+  if (city && city.trim()) school.city = city.trim();
+  if (address !== undefined) school.address = address.trim();
+
+  if (latitude !== undefined && longitude !== undefined) {
+    const lat = parseFloat(latitude);
+    const lng = parseFloat(longitude);
+    if (!isNaN(lat) && !isNaN(lng)) {
+      school.location = {
+        type: "Point",
+        coordinates: [lng, lat],
+      };
+    }
+  }
+
+  if (status && ["approved", "pending", "rejected"].includes(status)) {
+    school.status = status;
+    school.isApproved = status === "approved";
+  }
+
+  await school.save();
+
+  res.status(200).json({ message: "School details and exact location updated successfully!", school });
 });
 
 // @desc    Admin: Reject school & city request

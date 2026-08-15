@@ -10,6 +10,7 @@ import {
   requestNewSchool,
   getPendingSchoolRequests,
   approveSchoolRequest,
+  updateSchoolRequest,
   rejectSchoolRequest,
   submitStallDefense,
   getStallDisputes,
@@ -39,6 +40,7 @@ router.route("/admin/:id/reject").put(adminAuth, rejectStallReport).post(adminAu
 
 // Admin School & City Requests
 router.get("/admin/school-requests", adminAuth, getPendingSchoolRequests);
+router.put("/admin/school-requests/:id", adminAuth, updateSchoolRequest);
 router.route("/admin/school-requests/:id/approve").put(adminAuth, approveSchoolRequest).post(adminAuth, approveSchoolRequest);
 router.route("/admin/school-requests/:id/reject").put(adminAuth, rejectSchoolRequest).post(adminAuth, rejectSchoolRequest);
 
