@@ -8,11 +8,12 @@ import {
   authGoogleUser,
   getUserByCode,
   getUserPublicProfile,
+  followUser,
   forgotPassword,
   resetPassword,
   changePassword,
 } from "../controllers/userController.js";
-import { protect } from "../middleware/authMiddleware.js";
+import { protect, getOptionalUser } from "../middleware/authMiddleware.js";
 import profileUpload from "../middleware/profileUpload.js";
 
 const router = express.Router();
@@ -26,7 +27,8 @@ router.route("/profile")
   .post(protect, profileUpload.single("profilePicture"), updateUserProfile);
 router.post("/google-auth", authGoogleUser);
 router.get("/code/:code", getUserByCode);
-router.get("/public/:id", getUserPublicProfile);
+router.get("/public/:id", getOptionalUser, getUserPublicProfile);
+router.post("/:id/follow", protect, followUser);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
 router.route("/change-password")

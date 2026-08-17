@@ -54,6 +54,18 @@ const userSchema = mongoose.Schema(
         ref: "Petition",
       },
     ],
+    followers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+    following: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     socialLinks: {
       facebook: { type: String, default: "" },
       twitter: { type: String, default: "" },

@@ -3,6 +3,7 @@ import generateToken from "../utils/generateToken.js";
 import User from "../models/userModel.js";
 import Wallet from "../models/walletModel.js";
 import Petition from "../models/petitionModel.js";
+import Notification from "../models/notificationModel.js";
 import fetch from "node-fetch";
 
 // @desc    Auth user & get token
@@ -615,16 +616,49 @@ const getUserByCode = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get public user profile by ID
+// @desc    Get public user profile by ID or unique code
 // @route   GET /api/users/public/:id
-// @access  Public
+// @access  Public (Optional Auth)
 const getUserPublicProfile = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.params.id).select(
-    "name designation bio profilePicture uniqueCode email mobileNumber socialLinks aadhaarKyc createdAt"
-  );
+  const { id } = req.params;
+
+  let user;
+  if (id.match(/^[0-9a-fA-F]{24}$/)) {
+    user = await User.findById(id)
+      .populate("followers", "name profilePicture designation uniqueCode")
+      .populate("following", "name profilePicture designation uniqueCode");
+  } else {
+    user = await User.findOne({ uniqueCode: id.trim().toUpperCase() })
+      .populate("followers", "name profilePicture designation uniqueCode")
+      .populate("following", "name profilePicture designation uniqueCode");
+  }
+
   if (!user) {
     res.status(404);
     throw new Error("User not found");
+  }
+
+  // Fetch petitions created by this user
+  const petitions = await Petition.find({
+    "petitionStarter.user": user._id,
+  })
+    .select(
+      "title slug categories petitionDetails numberOfSignatures goalSignatures status createdAt isFeaturedInBanner"
+    )
+    .sort({ createdAt: -1 });
+
+  // Calculate total signatures received
+  const totalSignaturesReceived = petitions.reduce(
+    (acc, pet) => acc + (pet.numberOfSignatures || 0),
+    0
+  );
+
+  // Determine if requesting user is following this profile
+  let isFollowing = false;
+  if (req.user) {
+    isFollowing = (user.followers || []).some(
+      (f) => f._id ? f._id.toString() === req.user._id.toString() : f.toString() === req.user._id.toString()
+    );
   }
 
   res.status(200).json({
@@ -634,11 +668,87 @@ const getUserPublicProfile = asyncHandler(async (req, res) => {
     bio: user.bio || "",
     profilePicture: user.profilePicture || "",
     uniqueCode: user.uniqueCode || "",
-    email: user.email || "",
-    mobileNumber: user.mobileNumber || "",
     socialLinks: user.socialLinks || {},
     isVerified: user.aadhaarKyc?.status === "verified",
     createdAt: user.createdAt,
+    followersCount: (user.followers || []).length,
+    followingCount: (user.following || []).length,
+    followers: user.followers || [],
+    following: user.following || [],
+    petitions: petitions || [],
+    stats: {
+      totalPetitions: petitions.length,
+      totalSignatures: totalSignaturesReceived,
+      followersCount: (user.followers || []).length,
+      followingCount: (user.following || []).length,
+    },
+    isFollowing,
+  });
+});
+
+// @desc    Follow or unfollow a user
+// @route   POST /api/users/:id/follow
+// @access  Private
+const followUser = asyncHandler(async (req, res) => {
+  const targetUserId = req.params.id;
+  const currentUserId = req.user._id;
+
+  if (targetUserId.toString() === currentUserId.toString()) {
+    res.status(400);
+    throw new Error("You cannot follow yourself");
+  }
+
+  const targetUser = await User.findById(targetUserId);
+  const currentUser = await User.findById(currentUserId);
+
+  if (!targetUser || !currentUser) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  const isAlreadyFollowing = (targetUser.followers || []).some(
+    (id) => id.toString() === currentUserId.toString()
+  );
+
+  if (isAlreadyFollowing) {
+    // Unfollow
+    targetUser.followers = (targetUser.followers || []).filter(
+      (id) => id.toString() !== currentUserId.toString()
+    );
+    currentUser.following = (currentUser.following || []).filter(
+      (id) => id.toString() !== targetUserId.toString()
+    );
+  } else {
+    // Follow
+    if (!targetUser.followers) targetUser.followers = [];
+    if (!currentUser.following) currentUser.following = [];
+
+    targetUser.followers.push(currentUserId);
+    currentUser.following.push(targetUserId);
+
+    // Send notification to target user
+    try {
+      await Notification.create({
+        recipient: targetUser._id,
+        title: "New Follower",
+        message: `${currentUser.name} started following you on SoSign.`,
+        type: "info",
+        relatedId: currentUser._id,
+      });
+    } catch (notifErr) {
+      console.error("Failed to create follow notification:", notifErr);
+    }
+  }
+
+  await targetUser.save();
+  await currentUser.save();
+
+  res.status(200).json({
+    success: true,
+    isFollowing: !isAlreadyFollowing,
+    followersCount: targetUser.followers.length,
+    followingCount: targetUser.following.length,
+    message: !isAlreadyFollowing ? `Now following ${targetUser.name}` : `Unfollowed ${targetUser.name}`,
   });
 });
 
@@ -654,4 +764,5 @@ export {
   changePassword,
   getUserByCode,
   getUserPublicProfile,
+  followUser,
 };
