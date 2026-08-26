@@ -27,11 +27,27 @@ router
   );
 
 // Route to update target signatures used for progress display
-router.route("/:petitionId/progress").put(protect, updateProgressPercentage);
+router
+  .route("/:petitionId/progress")
+  .put(protect, updateProgressPercentage)
+  .post(protect, updateProgressPercentage);
 
 // Routes for a specific progress update
 router.route("/update/:id").get(getOptionalUser, getProgressUpdateById);
-router.route("/:id").delete(protect, deleteProgressUpdate);
-router.route("/:id/react").put(protect, reactToUpdate);
+router
+  .route("/:id")
+  .delete(protect, deleteProgressUpdate)
+  .post(protect, (req, res, next) => {
+    const override = req.headers["x-http-method-override"] || req.body?._method || req.query?._method;
+    if (override === "DELETE") {
+      return deleteProgressUpdate(req, res, next);
+    }
+    return next();
+  });
+
+router
+  .route("/:id/react")
+  .put(protect, reactToUpdate)
+  .post(protect, reactToUpdate);
 
 export default router;

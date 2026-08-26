@@ -463,14 +463,14 @@ const getPetitions = asyncHandler(async (req, res) => {
   query.approved = true;
   query.hidden = { $ne: true };
 
-  // Build sort object (prioritize featured banner petitions first)
+  // Build sort object
   let sortOption = { isFeaturedInBanner: -1, bannerOrder: 1, createdAt: -1 };
-  if (sort === "signatures") {
-    sortOption = { isFeaturedInBanner: -1, bannerOrder: 1, numberOfSignatures: -1 };
+  if (sort === "signatures" || sort === "popular" || sort === "trending") {
+    sortOption = { numberOfSignatures: -1, createdAt: -1 };
   } else if (sort === "oldest") {
-    sortOption = { isFeaturedInBanner: -1, bannerOrder: 1, createdAt: 1 };
+    sortOption = { createdAt: 1 };
   } else if (sort === "newest") {
-    sortOption = { isFeaturedInBanner: -1, bannerOrder: 1, createdAt: -1 };
+    sortOption = { createdAt: -1 };
   }
 
   // Run count and find in parallel

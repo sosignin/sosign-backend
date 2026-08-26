@@ -113,8 +113,7 @@ const isOriginAllowed = (origin) => {
     return true;
   }
   if (
-    process.env.NODE_ENV !== "production" &&
-    (cleanOrigin.includes("localhost") || cleanOrigin.includes("127.0.0.1"))
+    process.env.NODE_ENV !== "production" || cleanOrigin.includes("localhost") || cleanOrigin.includes("127.0.0.1") || cleanOrigin.includes("192.168.") || cleanOrigin.includes("10.0.")
   ) {
     return true;
   }
