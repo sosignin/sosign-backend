@@ -154,14 +154,15 @@ export const createStallReport = asyncHandler(async (req, res) => {
     throw new Error("Petition not found");
   }
 
-  // Check if user has signed the petition
+  // Check if user has signed the petition or is the petition creator
+  const isCreator = petition.user && petition.user.toString() === req.user._id.toString();
   const hasSigned = petition.signatures.some(
     (sig) => sig.user.toString() === req.user._id.toString()
   );
 
-  if (!hasSigned) {
+  if (!hasSigned && !isCreator) {
     res.status(403);
-    throw new Error("Only users who have signed this petition can submit a junk food stall report.");
+    throw new Error("Only users who have signed this petition or the petition creator can submit a junk food stall report.");
   }
 
   const school = await School.findById(schoolId);
