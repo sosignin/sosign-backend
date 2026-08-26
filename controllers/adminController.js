@@ -100,7 +100,7 @@ export const adminLogout = (req, res) => {
 export const getUsers = async (req, res) => {
   try {
     console.log("🔍 Fetching users with billing data...");
-    const users = await User.find({}, "name email mobileNumber createdAt isSuspended plan freeChecksRemaining isDummy bio aadhaarKyc");
+    const users = await User.find({}, "name email mobileNumber createdAt isSuspended plan freeChecksRemaining isDummy bio aadhaarKyc panKyc voterKyc");
     console.log(`👥 Found users: ${users.length}`);
 
     // Fetch wallet balances for all users in one query

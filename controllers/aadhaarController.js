@@ -21,6 +21,25 @@ import {
 import User from "../models/userModel.js";
 import Wallet from "../models/walletModel.js";
 import { calculateVerificationCost } from "../utils/billingUtils.js";
+import cloudinary from "../config/cloudinary.js";
+
+// Helper: Upload an in-memory buffer to Cloudinary
+const uploadBufferToCloudinary = (buffer, options = {}) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: "aadhaar-kyc",
+        resource_type: "image",
+        ...options,
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result);
+      }
+    );
+    stream.end(buffer);
+  });
+};
 
 // @desc    Send Aadhaar OTP for verification
 // @route   POST /api/aadhaar/send-otp
@@ -307,14 +326,42 @@ const verifyAadhaarKyc = asyncHandler(async (req, res) => {
       await wallet.save();
     }
 
+    let frontImageUrl = "";
+    let backImageUrl = "";
+    try {
+      if (frontFile?.buffer) {
+        const frontUpload = await uploadBufferToCloudinary(frontFile.buffer, {
+          public_id: `aadhaar_front_${user._id}_${Date.now()}`,
+        });
+        frontImageUrl = frontUpload.secure_url;
+      }
+      if (backFile?.buffer) {
+        const backUpload = await uploadBufferToCloudinary(backFile.buffer, {
+          public_id: `aadhaar_back_${user._id}_${Date.now()}`,
+        });
+        backImageUrl = backUpload.secure_url;
+      }
+    } catch (uploadErr) {
+      console.error("[KYC] Error uploading Aadhaar card images to Cloudinary:", uploadErr);
+    }
+
+    const ocrData = ocrResult?.raw?.data || ocrResult?.raw?.response || {};
     user.aadhaarKyc = {
       status: "verified",
+      verificationMethod: "ocr",
       maskedAadhaar: ocrResult.aadhaarNumber || "",
       name: ocrResult.name || "",
       dob: ocrResult.dob || "",
+      gender: ocrResult.gender || ocrData.Gender || ocrData.gender || "",
+      careOf: ocrResult.careOf || ocrData.FatherName || ocrData.father_name || ocrData.CareOf || "",
       address: ocrResult.address || "",
-      state: ocrResult.state || "",
-      pincode: ocrResult.pincode || "",
+      district: ocrResult.district || ocrData.District || ocrData.district || "",
+      state: ocrResult.state || ocrData.State || ocrData.state || "",
+      pincode: ocrResult.pincode || ocrData.Pincode || ocrData.pincode || "",
+      country: "India",
+      frontImage: frontImageUrl,
+      backImage: backImageUrl,
+      rawDetails: ocrResult.raw || null,
       verifiedAt: new Date(),
     };
 
@@ -480,14 +527,22 @@ const completeDigilockerKyc = asyncHandler(async (req, res) => {
       await wallet.save();
     }
 
+    const xmlData = aadhaarData?.raw?.Aadhaar_Xml_Data || {};
     user.aadhaarKyc = {
       status: "verified",
+      verificationMethod: "digilocker",
       maskedAadhaar: aadhaarData.maskedAadhaar || "",
       name: aadhaarData.fullName || "",
       dob: aadhaarData.dob || "",
+      gender: aadhaarData.gender || xmlData.Gender || "",
+      careOf: xmlData.Care_Of || xmlData.CareOf || xmlData.care_of || "",
       address: aadhaarData.fullAddress || "",
-      state: aadhaarData.state || "",
-      pincode: aadhaarData.pincode || "",
+      district: xmlData.Address?.District || xmlData.District || "",
+      state: aadhaarData.state || xmlData.Address?.State || "",
+      pincode: aadhaarData.pincode || xmlData.Zip || "",
+      country: xmlData.Address?.Country || "India",
+      profileImage: aadhaarData.profileImage || "",
+      rawDetails: aadhaarData.raw || null,
       verifiedAt: new Date(),
     };
 

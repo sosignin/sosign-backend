@@ -90,7 +90,7 @@ const userSchema = mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    // Aadhaar KYC verification via image OCR
+    // Aadhaar KYC verification via DigiLocker / OCR / OTP
     aadhaarKyc: {
       status: {
         type: String,
@@ -100,9 +100,18 @@ const userSchema = mongoose.Schema(
       maskedAadhaar: { type: String, default: "" },
       name: { type: String, default: "" },
       dob: { type: String, default: "" },
+      gender: { type: String, default: "" },
+      careOf: { type: String, default: "" },
       address: { type: String, default: "" },
+      district: { type: String, default: "" },
       state: { type: String, default: "" },
       pincode: { type: String, default: "" },
+      country: { type: String, default: "India" },
+      profileImage: { type: String, default: "" },
+      frontImage: { type: String, default: "" },
+      backImage: { type: String, default: "" },
+      verificationMethod: { type: String, default: "" },
+      rawDetails: { type: mongoose.Schema.Types.Mixed, default: null },
       verifiedAt: { type: Date, default: null },
     },
     // PAN KYC verification via PlanAPI direct API
