@@ -141,6 +141,15 @@ const petitionSchema = mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    hasPendingUpdates: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    pendingUpdates: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
     hidden: {
       type: Boolean,
       default: false,

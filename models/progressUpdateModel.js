@@ -37,7 +37,8 @@ const progressUpdateSchema = mongoose.Schema(
         fileType: { type: String, required: true }, // e.g. "application/pdf"
       },
     ],
-    videoUrl: { type: String }, // External video link
+    videoUrl: { type: String }, // External video link (first/primary)
+    videoUrls: [{ type: String }], // Array of external video links
     milestone: {
       label: { type: String },
       status: {

@@ -59,6 +59,35 @@ export const createProgressUpdate = asyncHandler(async (req, res) => {
     ? { label: milestoneLabel, status: milestoneStatus || "completed" }
     : undefined;
 
+  // Process multiple video URLs
+  let processedVideoUrls = [];
+  if (req.body.videoUrls) {
+    if (Array.isArray(req.body.videoUrls)) {
+      processedVideoUrls = req.body.videoUrls.filter(Boolean);
+    } else if (typeof req.body.videoUrls === "string") {
+      try {
+        const parsed = JSON.parse(req.body.videoUrls);
+        if (Array.isArray(parsed)) processedVideoUrls = parsed.filter(Boolean);
+        else processedVideoUrls = req.body.videoUrls.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+      } catch {
+        processedVideoUrls = req.body.videoUrls.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+      }
+    }
+  } else if (req.body.videoUrlsJson) {
+    try {
+      const parsed = JSON.parse(req.body.videoUrlsJson);
+      if (Array.isArray(parsed)) processedVideoUrls = parsed.filter(Boolean);
+    } catch {}
+  }
+  if (videoUrl) {
+    const splitUrls = String(videoUrl).split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+    splitUrls.forEach((u) => {
+      if (!processedVideoUrls.includes(u)) processedVideoUrls.push(u);
+    });
+  }
+
+  const primaryVideoUrl = processedVideoUrls[0] || videoUrl || undefined;
+
   const update = new ProgressUpdate({
     petition: petitionId,
     author: req.user._id,
@@ -67,7 +96,8 @@ export const createProgressUpdate = asyncHandler(async (req, res) => {
     updateType: updateType || "text",
     images,
     documents,
-    videoUrl,
+    videoUrl: primaryVideoUrl,
+    videoUrls: processedVideoUrls,
     milestone,
     isApproved: true, // Auto-publish for creators
   });

@@ -1,5 +1,7 @@
+import mongoose from "mongoose";
 import asyncHandler from "express-async-handler";
 import Petition from "../models/petitionModel.js";
+import PetitionView from "../models/petitionViewModel.js";
 import User from "../models/userModel.js";
 import Wallet from "../models/walletModel.js";
 import SuccessfulPetition from "../models/successfulPetitionModel.js";
@@ -580,9 +582,6 @@ const getPetitionById = asyncHandler(async (req, res) => {
   }
 
   if (petition) {
-    // Increment petition views asynchronously
-    Petition.findByIdAndUpdate(petition._id, { $inc: { views: 1 } }).exec().catch(() => {});
-
     // Find notable signers (Celebrities, Politicians, NGOs, etc.)
     // We search across ALL signatures for this petition
     const notableKeywords = [
@@ -828,65 +827,112 @@ const updatePetition = asyncHandler(async (req, res) => {
   }
   finalImages = finalImages.slice(0, 4);
 
-  // Update only the fields that are provided
+  // Prepare new details objects
+  const newPetitionDetails = (parsedPetitionDetails !== undefined || finalImages.length > 0)
+    ? {
+        ...petition.petitionDetails,
+        ...(parsedPetitionDetails || {}),
+        images: finalImages,
+        image: finalImages[0] || petition.petitionDetails?.image || "",
+      }
+    : petition.petitionDetails;
+
+  const newSocialLinks = parsedSocialLinks !== undefined
+    ? {
+        ...(petition.socialLinks || {}),
+        ...parsedSocialLinks,
+      }
+    : petition.socialLinks;
+
+  const newPetitionStarter = parsedPetitionStarter !== undefined
+    ? {
+        ...petition.petitionStarter,
+        ...parsedPetitionStarter,
+        user: petition.petitionStarter.user, // Preserve creator ID
+      }
+    : petition.petitionStarter;
+
+  const newConstituencySettings = parsedConstituencySettings !== undefined
+    ? {
+        required: parsedConstituencySettings.required || false,
+        allowedConstituency:
+          parsedConstituencySettings.allowedConstituency || undefined,
+      }
+    : petition.constituencySettings;
+
+  const newSigningRequirements = parsedSigningRequirements !== undefined
+    ? {
+        constituency: {
+          required: parsedSigningRequirements.constituency?.required || false,
+          allowedConstituency:
+            parsedSigningRequirements.constituency?.allowedConstituency || undefined,
+        },
+        aadhar: {
+          required: parsedSigningRequirements.aadhar?.required || false,
+        },
+      }
+    : petition.signingRequirements;
+
+  // CASE 1: Petition is ALREADY APPROVED and LIVE
+  // Keep the current version live and visible on the website!
+  // Store the proposed changes in pendingUpdates for admin review.
+  if (petition.approved) {
+    petition.hasPendingUpdates = true;
+    petition.pendingUpdates = {
+      title: title !== undefined ? title : petition.title,
+      decisionMakers: parsedDecisionMakers !== undefined ? parsedDecisionMakers : petition.decisionMakers,
+      requestedSigners: parsedRequestedSigners !== undefined ? parsedRequestedSigners : petition.requestedSigners,
+      country: country !== undefined ? country : petition.country,
+      categories: parsedCategories !== undefined ? parsedCategories : petition.categories,
+      petitionDetails: newPetitionDetails,
+      socialLinks: newSocialLinks,
+      petitionStarter: newPetitionStarter,
+      constituencySettings: newConstituencySettings,
+      signingRequirements: newSigningRequirements,
+      submittedAt: new Date(),
+    };
+
+    const updatedPetition = await petition.save();
+
+    return res.status(200).json({
+      _id: updatedPetition._id,
+      title: updatedPetition.title,
+      categories: updatedPetition.categories,
+      decisionMakers: updatedPetition.decisionMakers,
+      requestedSigners: updatedPetition.requestedSigners,
+      country: updatedPetition.country,
+      petitionDetails: updatedPetition.petitionDetails,
+      petitionStarter: updatedPetition.petitionStarter,
+      socialLinks: updatedPetition.socialLinks,
+      numberOfSignatures: updatedPetition.numberOfSignatures,
+      approved: updatedPetition.approved,
+      status: updatedPetition.status,
+      hasPendingUpdates: true,
+      pendingUpdates: updatedPetition.pendingUpdates,
+      message: "Petition updates submitted for admin approval. The current live petition remains active.",
+      createdAt: updatedPetition.createdAt,
+      updatedAt: updatedPetition.updatedAt,
+    });
+  }
+
+  // CASE 2: Brand new petition (pending approval or rejected)
   if (title !== undefined) petition.title = title;
   if (parsedDecisionMakers !== undefined) petition.decisionMakers = parsedDecisionMakers;
   if (parsedRequestedSigners !== undefined) petition.requestedSigners = parsedRequestedSigners;
   if (country !== undefined) petition.country = country;
   if (parsedCategories !== undefined) petition.categories = parsedCategories;
+  petition.petitionDetails = newPetitionDetails;
+  petition.socialLinks = newSocialLinks;
+  petition.petitionStarter = newPetitionStarter;
+  petition.constituencySettings = newConstituencySettings;
+  petition.signingRequirements = newSigningRequirements;
 
-  if (parsedPetitionDetails !== undefined || finalImages.length > 0) {
-    petition.petitionDetails = {
-      ...petition.petitionDetails,
-      ...(parsedPetitionDetails || {}),
-      images: finalImages,
-      image: finalImages[0] || petition.petitionDetails?.image || "",
-    };
-  }
-
-  if (parsedSocialLinks !== undefined) {
-    petition.socialLinks = {
-      ...(petition.socialLinks || {}),
-      ...parsedSocialLinks,
-    };
-  }
-
-  if (parsedPetitionStarter !== undefined) {
-    petition.petitionStarter = {
-      ...petition.petitionStarter,
-      ...parsedPetitionStarter,
-      user: petition.petitionStarter.user, // Preserve creator ID
-    };
-  }
-
-  if (parsedConstituencySettings !== undefined) {
-    petition.constituencySettings = {
-      required: parsedConstituencySettings.required || false,
-      allowedConstituency:
-        parsedConstituencySettings.allowedConstituency || undefined,
-    };
-  }
-
-  if (parsedSigningRequirements !== undefined) {
-    petition.signingRequirements = {
-      constituency: {
-        required: parsedSigningRequirements.constituency?.required || false,
-        allowedConstituency:
-          parsedSigningRequirements.constituency?.allowedConstituency || undefined,
-      },
-      aadhar: {
-        required: parsedSigningRequirements.aadhar?.required || false,
-      },
-    };
-  }
-
-  // Set petition to pending approval when edited
   petition.approved = false;
-  petition.status = "pending"; // Reset status to pending for re-approval
+  petition.status = "pending"; // Reset status to pending for initial approval
 
   const updatedPetition = await petition.save();
 
-  // Trigger static regeneration on-demand (since it is pending, it should be removed from active pages)
+  // Trigger static regeneration on-demand
   triggerRevalidation("/currentpetitions");
   triggerRevalidation(`/currentpetitions/${updatedPetition.slug}`);
 
@@ -903,6 +949,7 @@ const updatePetition = asyncHandler(async (req, res) => {
     numberOfSignatures: updatedPetition.numberOfSignatures,
     approved: updatedPetition.approved,
     status: updatedPetition.status,
+    hasPendingUpdates: false,
     createdAt: updatedPetition.createdAt,
     updatedAt: updatedPetition.updatedAt,
   });
@@ -1543,6 +1590,69 @@ const getAdminPetitionSignatures = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Record unique view for a petition
+// @route   POST /api/petitions/:id/view
+// @access  Public (Optionally Authenticated)
+const recordPetitionView = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  let petition = null;
+  if (mongoose.Types.ObjectId.isValid(id)) {
+    petition = await Petition.findById(id);
+  }
+  if (!petition) {
+    petition = await Petition.findOne({ slug: id });
+  }
+
+  if (!petition) {
+    res.status(404);
+    throw new Error("Petition not found");
+  }
+
+  const ip =
+    req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+    req.socket?.remoteAddress ||
+    req.ip ||
+    "127.0.0.1";
+  const userAgent = req.headers["user-agent"] || "";
+  const userId = req.user?._id;
+
+  // Use user ID if authenticated, otherwise IP address
+  const viewerKey = userId ? `user_${userId}` : `ip_${ip}`;
+
+  try {
+    // Attempt to record new unique view
+    await PetitionView.create({
+      petition: petition._id,
+      viewerKey,
+      user: userId || undefined,
+      ip,
+      userAgent: userAgent.substring(0, 255),
+    });
+
+    // Atomically increment views counter on petition
+    const updatedPetition = await Petition.findByIdAndUpdate(
+      petition._id,
+      { $inc: { views: 1 } },
+      { new: true }
+    );
+
+    res.status(200).json({
+      views: updatedPetition.views,
+      isNewView: true,
+    });
+  } catch (err) {
+    if (err.code === 11000) {
+      // Duplicate view by same viewer: return current views without incrementing
+      return res.status(200).json({
+        views: petition.views,
+        isNewView: false,
+      });
+    }
+    throw err;
+  }
+});
+
 export {
   createPetition,
   getPetitions,
@@ -1560,4 +1670,5 @@ export {
   getPetitionSigners,
   getUserPetitionsSigners,
   getAdminPetitionSignatures,
+  recordPetitionView,
 };

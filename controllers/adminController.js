@@ -172,14 +172,15 @@ export const toggleUserSuspension = async (req, res) => {
   }
 };
 
-// Get all unapproved petitions
+// Get all unapproved petitions (including pending updates for live petitions)
 export const getUnapprovedPetitions = async (req, res) => {
   try {
     const petitions = await Petition.find({
       $or: [
         { status: "pending" },
-        { approved: false, status: "approved" } // Catch re-edited petitions
-      ]
+        { approved: false },
+        { hasPendingUpdates: true },
+      ],
     })
       .populate("petitionStarter.user", "name email")
       .populate("motherPetition", "title slug petitionDetails.image")
@@ -205,22 +206,52 @@ export const getRejectedPetitions = async (req, res) => {
   }
 };
 
-// Approve a petition
+// Approve a petition or approve pending petition updates
 export const approvePetition = async (req, res) => {
   try {
     const petition = await Petition.findById(req.params.id);
     if (!petition) {
       return res.status(404).json({ message: "Petition not found" });
     }
+
+    const wasUpdate = Boolean(petition.hasPendingUpdates && petition.pendingUpdates);
+
+    // If this petition has pending updates from petitioner, apply them now!
+    if (petition.hasPendingUpdates && petition.pendingUpdates) {
+      const updates = petition.pendingUpdates;
+      if (updates.title !== undefined) petition.title = updates.title;
+      if (updates.decisionMakers !== undefined) petition.decisionMakers = updates.decisionMakers;
+      if (updates.requestedSigners !== undefined) petition.requestedSigners = updates.requestedSigners;
+      if (updates.country !== undefined) petition.country = updates.country;
+      if (updates.categories !== undefined) petition.categories = updates.categories;
+      if (updates.petitionDetails !== undefined) petition.petitionDetails = updates.petitionDetails;
+      if (updates.socialLinks !== undefined) petition.socialLinks = updates.socialLinks;
+      if (updates.petitionStarter !== undefined) {
+        petition.petitionStarter = {
+          ...petition.petitionStarter,
+          ...updates.petitionStarter,
+          user: petition.petitionStarter.user, // Preserve creator
+        };
+      }
+      if (updates.constituencySettings !== undefined) petition.constituencySettings = updates.constituencySettings;
+      if (updates.signingRequirements !== undefined) petition.signingRequirements = updates.signingRequirements;
+
+      petition.hasPendingUpdates = false;
+      petition.pendingUpdates = null;
+    }
+
     petition.approved = true;
     petition.status = "approved";
+    petition.rejectionReason = undefined;
     await petition.save();
 
     // Create notification
     await Notification.create({
       recipient: petition.petitionStarter.user,
-      title: "Petition Approved",
-      message: `Your petition "${petition.title}" has been approved and is now live!`,
+      title: wasUpdate ? "Petition Updates Approved" : "Petition Approved",
+      message: wasUpdate
+        ? `Your updates for petition "${petition.title}" have been approved and are now live!`
+        : `Your petition "${petition.title}" has been approved and is now live!`,
       type: "success",
       relatedId: petition._id,
     });
@@ -229,20 +260,44 @@ export const approvePetition = async (req, res) => {
     triggerRevalidation("/currentpetitions");
     triggerRevalidation(`/currentpetitions/${petition.slug}`);
 
-    res.status(200).json({ message: "Petition approved successfully" });
+    res.status(200).json({
+      message: wasUpdate
+        ? "Petition updates approved successfully and live changes applied"
+        : "Petition approved successfully",
+    });
   } catch (error) {
     console.error("Error approving petition:", error);
     res.status(500).json({ message: "Error approving petition" });
   }
 };
 
-// Reject a petition
+// Reject a petition or reject pending petition updates
 export const rejectPetition = async (req, res) => {
   try {
     const { reason } = req.body;
     const petition = await Petition.findById(req.params.id);
     if (!petition) {
       return res.status(404).json({ message: "Petition not found" });
+    }
+
+    // If petition is already approved and only has pending updates:
+    // Reject the pending updates only, leaving the live petition intact!
+    if (petition.approved && petition.hasPendingUpdates) {
+      petition.hasPendingUpdates = false;
+      petition.pendingUpdates = null;
+      await petition.save();
+
+      await Notification.create({
+        recipient: petition.petitionStarter.user,
+        title: "Petition Updates Rejected",
+        message: `Your requested changes for petition "${petition.title}" were not approved (${reason || "Does not meet guidelines"}). The current version of your petition remains live.`,
+        type: "error",
+        relatedId: petition._id,
+      });
+
+      return res.status(200).json({
+        message: "Pending updates rejected. Existing live petition remains active.",
+      });
     }
 
     const wasAlreadyRejected = petition.status === "rejected";
