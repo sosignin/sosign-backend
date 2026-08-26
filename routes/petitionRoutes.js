@@ -44,9 +44,18 @@ router
   .post(protect, upload.array("images", 4), updatePetition)
   .delete(protect, deletePetition);
 
+import { uploadClaimFiles, processClaimFiles } from "../middleware/upload.js";
 import { submitClaim } from "../controllers/requestedSignatureClaimController.js";
 
-router.route("/:petitionId/claim-requested-signature").post(protect, submitClaim);
+router.route("/:petitionId/claim-requested-signature").post(
+  protect,
+  uploadClaimFiles.fields([
+    { name: "video", maxCount: 1 },
+    { name: "proofDocument", maxCount: 1 },
+  ]),
+  processClaimFiles,
+  submitClaim
+);
 router.route("/:id/sign").put(protect, signPetition).post(protect, signPetition);
 router.route("/:id/check-signature").get(protect, checkUserSignature);
 router.route("/:id/signers").get(protect, getPetitionSigners);

@@ -15,13 +15,28 @@ export const submitClaim = asyncHandler(async (req, res) => {
     claimantEmail,
     claimantPhone,
     claimType,
-    proofDocumentUrl,
     message,
   } = req.body;
 
-  if (!requestedSignerId || !claimantName || !claimantEmail || !proofDocumentUrl) {
+  let proofDocumentUrl = req.body.proofDocumentUrl?.trim() || "";
+  let videoUrl = req.body.videoUrl?.trim() || "";
+
+  // Check if files were uploaded via multipart/form-data
+  if (req.processedClaimFiles?.video?.path) {
+    videoUrl = req.processedClaimFiles.video.path;
+  }
+  if (req.processedClaimFiles?.proofDocument?.path) {
+    proofDocumentUrl = req.processedClaimFiles.proofDocument.path;
+  }
+
+  if (!requestedSignerId || !claimantName || !claimantEmail) {
     res.status(400);
-    throw new Error("Requested signer ID, claimant name, email, and proof document URL are required.");
+    throw new Error("Requested signer ID, claimant name, and email are required.");
+  }
+
+  if (!proofDocumentUrl && !videoUrl) {
+    res.status(400);
+    throw new Error("Please provide verification proof: upload a video, enter a video link, or provide a proof document.");
   }
 
   // Find target petition
@@ -69,6 +84,7 @@ export const submitClaim = asyncHandler(async (req, res) => {
     claimantPhone: claimantPhone?.trim() || "",
     claimType: claimType || "self",
     proofDocumentUrl: proofDocumentUrl.trim(),
+    videoUrl: videoUrl.trim(),
     message: message?.trim() || "",
     status: "Pending",
   });
@@ -103,7 +119,8 @@ export const submitClaim = asyncHandler(async (req, res) => {
             <p><strong>Claimant Name:</strong> ${claimantName}</p>
             <p><strong>Claimant Email:</strong> ${claimantEmail}</p>
             <p><strong>Claim Type:</strong> ${claimType === "self" ? "Self (" + requestedSigner.name + ")" : "Authorized Manager / Representative"}</p>
-            <p><strong>Proof Document URL:</strong> <a href="${proofDocumentUrl}" target="_blank">${proofDocumentUrl}</a></p>
+            ${proofDocumentUrl ? `<p><strong>Proof Document:</strong> <a href="${proofDocumentUrl}" target="_blank">${proofDocumentUrl}</a></p>` : ""}
+            ${videoUrl ? `<p><strong>Verification Video:</strong> <a href="${videoUrl}" target="_blank">${videoUrl}</a></p>` : ""}
             ${message ? `<p><strong>Notes:</strong> ${message}</p>` : ""}
           </div>
           <div style="text-align: center;">

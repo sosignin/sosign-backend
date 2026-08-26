@@ -43,7 +43,11 @@ const requestedSignatureClaimSchema = new mongoose.Schema(
     },
     proofDocumentUrl: {
       type: String,
-      required: true,
+      default: "",
+    },
+    videoUrl: {
+      type: String,
+      default: "",
     },
     message: {
       type: String,

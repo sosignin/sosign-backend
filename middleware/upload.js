@@ -127,6 +127,73 @@ const processProgressFiles = async (req, res, next) => {
   }
 };
 
-export { uploadProgressFiles, processProgressFiles };
+// Storage for signature claim verification files (videos and documents)
+const claimMemoryStorage = multer.memoryStorage();
+
+const uploadClaimFiles = multer({
+  storage: claimMemoryStorage,
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100MB limit for verification videos/proof
+  },
+  fileFilter: (req, file, cb) => {
+    if (
+      file.mimetype.startsWith("video/") ||
+      file.mimetype.startsWith("image/") ||
+      file.mimetype === "application/pdf"
+    ) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only video, image, and PDF files are allowed!"), false);
+    }
+  },
+});
+
+const processClaimFiles = async (req, res, next) => {
+  try {
+    if (!req.files || Object.keys(req.files).length === 0) return next();
+
+    const videoFiles = req.files.video || [];
+    const docFiles = req.files.proofDocument || [];
+
+    if (videoFiles.length === 0 && docFiles.length === 0) return next();
+
+    const processedFiles = {};
+
+    // Process video file
+    for (const file of videoFiles) {
+      if (!file.buffer) continue;
+      const result = await uploadToCloudinary(file.buffer, {
+        folder: "claim-verification-videos",
+        resource_type: "video",
+      });
+      processedFiles.video = {
+        path: result.secure_url,
+        filename: file.originalname,
+      };
+    }
+
+    // Process document / image file
+    for (const file of docFiles) {
+      if (!file.buffer) continue;
+      const isPdf = file.mimetype === "application/pdf";
+      const result = await uploadToCloudinary(file.buffer, {
+        folder: "claim-verification-documents",
+        resource_type: isPdf ? "raw" : "image",
+      });
+      processedFiles.proofDocument = {
+        path: result.secure_url,
+        filename: file.originalname,
+      };
+    }
+
+    req.processedClaimFiles = processedFiles;
+    next();
+  } catch (error) {
+    console.error("Error processing claim verification files:", error);
+    next(error);
+  }
+};
+
+export { uploadProgressFiles, processProgressFiles, uploadClaimFiles, processClaimFiles };
 export default upload;
 
