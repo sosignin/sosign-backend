@@ -15,6 +15,7 @@ import {
   getPetitionSigners,
   getUserPetitionsSigners,
   recordPetitionView,
+  getPetitionInsights,
 } from "../controllers/petitionController.js";
 import { protect, getOptionalUser } from "../middleware/authMiddleware.js";
 import upload from "../middleware/upload.js";
@@ -59,6 +60,7 @@ router.route("/:petitionId/claim-requested-signature").post(
 router.route("/:id/sign").put(protect, signPetition).post(protect, signPetition);
 router.route("/:id/check-signature").get(protect, checkUserSignature);
 router.route("/:id/signers").get(protect, getPetitionSigners);
+router.route("/:id/insights").get(protect, getPetitionInsights);
 router.route("/:id/view").post(getOptionalUser, recordPetitionView);
 
 export default router;

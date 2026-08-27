@@ -1653,6 +1653,128 @@ const recordPetitionView = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc    Get detailed view insights & follower analytics for petition creator
+// @route   GET /api/petitions/:id/insights
+// @access  Private (Creator or Admin)
+const getPetitionInsights = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  let petition = null;
+  if (mongoose.Types.ObjectId.isValid(id)) {
+    petition = await Petition.findById(id);
+  }
+  if (!petition) {
+    petition = await Petition.findOne({ slug: id });
+  }
+
+  if (!petition) {
+    res.status(404);
+    throw new Error("Petition not found");
+  }
+
+  const creatorId =
+    petition.petitionStarter?.user?._id?.toString() ||
+    petition.petitionStarter?.user?.toString() ||
+    petition.user?._id?.toString() ||
+    petition.user?.toString() ||
+    "";
+
+  const isCreator = req.user && creatorId && creatorId === req.user._id.toString();
+  const isAdmin = req.user && (req.user.role === "admin" || req.user.role === "superadmin");
+
+  if (!isCreator && !isAdmin) {
+    res.status(403);
+    throw new Error("Only the petition creator or admin can view petition insights.");
+  }
+
+  // Get Creator with followers
+  let creator = null;
+  if (creatorId && mongoose.Types.ObjectId.isValid(creatorId)) {
+    creator = await User.findById(creatorId).select("followers name");
+  }
+  const creatorFollowerIds = (creator?.followers || []).map((f) => f.toString());
+  const totalFollowersCount = creatorFollowerIds.length;
+
+  // Get all recorded views for this petition
+  const recordedViews = await PetitionView.find({ petition: petition._id }).sort({ createdAt: 1 });
+
+  let followerViews = 0;
+  let nonFollowerViews = 0;
+  let authenticatedViews = 0;
+  let guestViews = 0;
+
+  // Daily views breakdown (last 7 days)
+  const now = new Date();
+  const last7DaysMap = {};
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split("T")[0];
+    last7DaysMap[dateStr] = { date: dateStr, followers: 0, nonFollowers: 0, total: 0 };
+  }
+
+  recordedViews.forEach((v) => {
+    let isFollower = false;
+    if (v.user) {
+      authenticatedViews++;
+      if (creatorFollowerIds.includes(v.user.toString())) {
+        followerViews++;
+        isFollower = true;
+      } else {
+        nonFollowerViews++;
+      }
+    } else {
+      guestViews++;
+      nonFollowerViews++;
+    }
+
+    if (v.createdAt) {
+      const vDateStr = new Date(v.createdAt).toISOString().split("T")[0];
+      if (last7DaysMap[vDateStr]) {
+        last7DaysMap[vDateStr].total += 1;
+        if (isFollower) {
+          last7DaysMap[vDateStr].followers += 1;
+        } else {
+          last7DaysMap[vDateStr].nonFollowers += 1;
+        }
+      }
+    }
+  });
+
+  // Base total views on the highest of petition.views and recordedViews.length
+  const totalRecorded = recordedViews.length;
+  const totalViews = Math.max(petition.views || 0, totalRecorded);
+
+  // If there are legacy views not in PetitionView, distribute proportionally
+  if (totalViews > totalRecorded && totalRecorded > 0) {
+    const scale = totalViews / totalRecorded;
+    followerViews = Math.round(followerViews * scale);
+    nonFollowerViews = totalViews - followerViews;
+  } else if (totalRecorded === 0 && totalViews > 0) {
+    nonFollowerViews = totalViews;
+  }
+
+  const followerPercent = totalViews > 0 ? Number(((followerViews / totalViews) * 100).toFixed(1)) : 0;
+  const nonFollowerPercent = totalViews > 0 ? Number(((nonFollowerViews / totalViews) * 100).toFixed(1)) : 0;
+
+  const signaturesCount = petition.numberOfSignatures || 0;
+  const conversionRate = totalViews > 0 ? Number(((signaturesCount / totalViews) * 100).toFixed(1)) : 0;
+
+  res.status(200).json({
+    totalViews,
+    followerViews,
+    nonFollowerViews,
+    followerPercent,
+    nonFollowerPercent,
+    authenticatedViews,
+    guestViews,
+    totalFollowers: totalFollowersCount,
+    signaturesCount,
+    conversionRate,
+    last7DaysTrend: Object.values(last7DaysMap),
+  });
+});
+
 export {
   createPetition,
   getPetitions,
@@ -1671,4 +1793,5 @@ export {
   getUserPetitionsSigners,
   getAdminPetitionSignatures,
   recordPetitionView,
+  getPetitionInsights,
 };
