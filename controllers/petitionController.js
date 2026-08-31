@@ -525,7 +525,9 @@ const getAllPetitionsForAdmin = asyncHandler(async (req, res) => {
   // Admin sees ALL petitions (approved and unapproved)
   const [petitions, totalPetitions] = await Promise.all([
     Petition.find(query)
-      .select("-signatures")
+      .select(
+        "-signatures -petitionStarter.location -petitionStarter.mobile -petitionStarter.aadharNumber -petitionStarter.panNumber -petitionStarter.voterNumber -petitionStarter.pincode -petitionStarter.mpConstituencyNumber -petitionStarter.mlaConstituencyNumber"
+      )
       .populate("petitionStarter.user", "name email designation profilePicture")
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -745,6 +747,30 @@ const getPetitionById = asyncHandler(async (req, res) => {
     petitionObj.requestedSignersStatus = requestedSignersStatus;
     petitionObj.subPetitions = subPetitions;
     petitionObj.combinedSignatures = combinedSignatures;
+
+    // Sanitize sensitive creator address & KYC info for non-creators/non-admins
+    const creatorId =
+      petition.petitionStarter?.user?._id?.toString() ||
+      petition.petitionStarter?.user?.toString() ||
+      petition.user?._id?.toString() ||
+      petition.user?.toString() ||
+      "";
+    const isCreatorOrAdmin =
+      req.user &&
+      (creatorId === req.user._id.toString() ||
+        req.user.role === "admin" ||
+        req.user.role === "superadmin");
+
+    if (!isCreatorOrAdmin && petitionObj.petitionStarter) {
+      delete petitionObj.petitionStarter.location;
+      delete petitionObj.petitionStarter.mobile;
+      delete petitionObj.petitionStarter.aadharNumber;
+      delete petitionObj.petitionStarter.panNumber;
+      delete petitionObj.petitionStarter.voterNumber;
+      delete petitionObj.petitionStarter.pincode;
+      delete petitionObj.petitionStarter.mpConstituencyNumber;
+      delete petitionObj.petitionStarter.mlaConstituencyNumber;
+    }
 
     res.status(200).json(petitionObj);
   } else {

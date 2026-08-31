@@ -752,6 +752,139 @@ const followUser = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Render Google Web Login Bridge for Mobile App
+// @route   GET /api/users/google-web-login
+// @access  Public
+const renderGoogleWebLogin = (req, res) => {
+  const redirectUrl = req.query.redirect_url || 'sosign://oauth-callback';
+  
+  // Directly redirect to the official website login page with app_redirect parameter
+  // so the user authenticates on the live SoSign website and gets returned to the app
+  const websiteLoginUrl = `https://www.sosign.in/login?app_redirect=${encodeURIComponent(redirectUrl)}`;
+  
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>SoSign - Google Sign-In</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: linear-gradient(135deg, #1E1B4B 0%, #302D55 50%, #0F172A 100%);
+      color: #FFFFFF;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: #FFFFFF;
+      color: #1E293B;
+      border-radius: 28px;
+      padding: 36px 28px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+    .logo-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #FFF1F2;
+      width: 64px;
+      height: 64px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+      border: 1.5px solid #FFE4E6;
+    }
+    .title {
+      font-size: 22px;
+      font-weight: 800;
+      color: #1E1B4B;
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+    }
+    .sub {
+      font-size: 13px;
+      color: #64748B;
+      margin-bottom: 28px;
+      line-height: 1.6;
+    }
+    .btn-google {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      padding: 16px 20px;
+      background: #FFFFFF;
+      border: 2px solid #E2E8F0;
+      border-radius: 16px;
+      font-weight: 700;
+      font-size: 15px;
+      color: #334155;
+      cursor: pointer;
+      text-decoration: none;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+    .btn-google:hover, .btn-google:active {
+      border-color: #F43676;
+      background: #FFF1F2;
+      transform: scale(0.99);
+    }
+    .footer-note {
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid #F1F5F9;
+      font-size: 11px;
+      color: #94A3B8;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo-badge">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#F43676" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+    </div>
+
+    <h1 class="title">SoSign Authentication</h1>
+    <p class="sub">Sign in with your Google account to access your petitions and wallet in the SoSign Mobile App.</p>
+
+    <a href="${websiteLoginUrl}" class="btn-google" id="googleBtn">
+      <svg width="20" height="20" viewBox="0 0 18 18" style="margin-right:12px;">
+        <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/>
+        <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
+        <path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707 0-.59.102-1.167.282-1.707V4.961H.957C.347 6.173 0 7.548 0 9s.347 2.827.957 4.039l3.007-2.332z"/>
+        <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/>
+      </svg>
+      Continue with Google
+    </a>
+
+    <div class="footer-note">
+      Verified authentication powered by SoSign & Google OAuth
+    </div>
+  </div>
+
+  <script>
+    // Auto redirect to website login page
+    setTimeout(function() {
+      window.location.href = "${websiteLoginUrl}";
+    }, 400);
+  </script>
+</body>
+</html>`;
+
+  res.setHeader('Content-Type', 'text/html');
+  res.send(html);
+};
+
 export {
   authUser,
   registerUser,
@@ -759,6 +892,7 @@ export {
   getUserProfile,
   updateUserProfile,
   authGoogleUser,
+  renderGoogleWebLogin,
   forgotPassword,
   resetPassword,
   changePassword,

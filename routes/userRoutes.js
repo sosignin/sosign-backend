@@ -6,6 +6,7 @@ import {
   getUserProfile,
   updateUserProfile,
   authGoogleUser,
+  renderGoogleWebLogin,
   getUserByCode,
   getUserPublicProfile,
   followUser,
@@ -26,6 +27,7 @@ router.route("/profile")
   .put(protect, profileUpload.single("profilePicture"), updateUserProfile)
   .post(protect, profileUpload.single("profilePicture"), updateUserProfile);
 router.post("/google-auth", authGoogleUser);
+router.get("/google-web-login", renderGoogleWebLogin);
 router.get("/code/:code", getUserByCode);
 router.get("/public/:id", getOptionalUser, getUserPublicProfile);
 router.post("/:id/follow", protect, followUser);

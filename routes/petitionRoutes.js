@@ -27,7 +27,7 @@ const router = express.Router();
 router
   .route("/")
   .post(protect, upload.array("images", 4), createPetition)
-  .get(setCache(60), getPetitions); // Cache list for 60s
+  .get(getOptionalUser, setCache(60), getPetitions); // Cache list for 60s
 
 // Special routes (must come before /:id)
 router.route("/my-petitions/signers").get(protect, getUserPetitionsSigners);
@@ -40,7 +40,7 @@ router.route("/country/:country").get(setCache(60), getPetitionsByCountry); // C
 // ID-specific routes
 router
   .route("/:id")
-  .get(setCache(60), getPetitionById) // Cache details for 60s
+  .get(getOptionalUser, setCache(60), getPetitionById) // Cache details for 60s
   .put(protect, upload.array("images", 4), updatePetition)
   .post(protect, upload.array("images", 4), updatePetition)
   .delete(protect, deletePetition);
