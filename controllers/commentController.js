@@ -2,6 +2,7 @@ import asyncHandler from "express-async-handler";
 import Comment from "../models/commentModel.js";
 import Petition from "../models/petitionModel.js";
 import { checkAbusiveContent } from "../utils/abusiveWords.js";
+import createAdminNotification from "../utils/adminNotifier.js";
 
 // @desc    Create a new comment
 // @route   POST /api/comments
@@ -38,6 +39,20 @@ const createComment = asyncHandler(async (req, res) => {
 
   // Populate user details for response
   await comment.populate("user", "name email designation");
+
+  // Trigger Admin Notification
+  createAdminNotification({
+    category: "comment_approval",
+    title: "New Comment for Approval",
+    message: `${req.user?.name || "A user"} commented on "${petition.title}": "${content.trim().slice(0, 60)}..."`,
+    link: "/dashboard/comment-approval",
+    relatedId: comment._id,
+    meta: {
+      petitionId: petition._id,
+      petitionTitle: petition.title,
+      userName: req.user?.name,
+    },
+  });
 
   res.status(201).json({
     success: true,

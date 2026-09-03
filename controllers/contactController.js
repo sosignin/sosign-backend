@@ -1,4 +1,5 @@
 import Contact from "../models/contactModel.js";
+import createAdminNotification from "../utils/adminNotifier.js";
 
 // @desc    Submit a contact form message
 // @route   POST /api/contact
@@ -19,6 +20,20 @@ export const createContactMessage = async (req, res) => {
       email: email.trim().toLowerCase(),
       subject: subject.trim(),
       message: message.trim(),
+    });
+
+    // Trigger Admin Notification
+    createAdminNotification({
+      category: "contact_message",
+      title: "New Contact Message 📩",
+      message: `${name.trim()} (${email.trim()}): "${subject.trim()}"`,
+      link: "/dashboard/contact-messages",
+      relatedId: contact._id,
+      meta: {
+        senderName: name.trim(),
+        senderEmail: email.trim(),
+        subject: subject.trim(),
+      },
     });
 
     res.status(201).json({

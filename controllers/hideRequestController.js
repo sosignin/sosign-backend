@@ -1,6 +1,7 @@
 import asyncHandler from "express-async-handler";
 import HideRequest from "../models/hideRequestModel.js";
 import Petition from "../models/petitionModel.js";
+import createAdminNotification from "../utils/adminNotifier.js";
 
 // @desc    Create a hide request for a petition
 // @route   POST /api/hide-requests
@@ -48,6 +49,20 @@ const createHideRequest = asyncHandler(async (req, res) => {
         petition: petitionId,
         user: req.user._id,
         reason: reason || "",
+    });
+
+    // Trigger Admin Notification
+    createAdminNotification({
+        category: "hide_request",
+        title: "New Petition Hide Request",
+        message: `${req.user?.name || "Creator"} requested to hide petition "${petition.title}"`,
+        link: "/dashboard/hide-requests",
+        relatedId: hideRequest._id,
+        meta: {
+            petitionTitle: petition.title,
+            creatorName: req.user?.name,
+            reason: reason || "",
+        },
     });
 
     res.status(201).json({

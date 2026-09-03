@@ -2,6 +2,7 @@ import asyncHandler from "express-async-handler";
 import DownloadRequest, { AVAILABLE_FIELDS } from "../models/downloadRequestModel.js";
 import Petition from "../models/petitionModel.js";
 import Comment from "../models/commentModel.js";
+import createAdminNotification from "../utils/adminNotifier.js";
 
 // @desc    Create a download request for a petition
 // @route   POST /api/download-requests
@@ -60,6 +61,20 @@ const createDownloadRequest = asyncHandler(async (req, res) => {
         user: req.user._id,
         reason: reason.trim(),
         requestedFields: validatedFields,
+    });
+
+    // Trigger Admin Notification
+    createAdminNotification({
+        category: "download_request",
+        title: "New Signer Data Download Request",
+        message: `${req.user?.name || "User"} requested to download signature data for "${petition.title}"`,
+        link: "/dashboard/download-requests",
+        relatedId: downloadRequest._id,
+        meta: {
+            petitionTitle: petition.title,
+            userName: req.user?.name,
+            reason: reason.trim(),
+        },
     });
 
     res.status(201).json({

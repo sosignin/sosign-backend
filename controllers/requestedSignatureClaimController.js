@@ -3,6 +3,7 @@ import RequestedSignatureClaim from "../models/requestedSignatureClaimModel.js";
 import Petition from "../models/petitionModel.js";
 import User from "../models/userModel.js";
 import { sendEmail } from "../config/emailConfig.js";
+import createAdminNotification from "../utils/adminNotifier.js";
 
 // @desc    Submit a verification claim for a requested signature
 // @route   POST /api/petitions/:petitionId/claim-requested-signature
@@ -87,6 +88,20 @@ export const submitClaim = asyncHandler(async (req, res) => {
     videoUrl: videoUrl.trim(),
     message: message?.trim() || "",
     status: "Pending",
+  });
+
+  // Trigger in-app Admin Notification
+  createAdminNotification({
+    category: "signature_claim",
+    title: "New Signature Claim ✍️",
+    message: `${claimantName} filed verification claim for "${requestedSigner.name}" on petition "${petition.title}"`,
+    link: "/dashboard/requested-signature-claims",
+    relatedId: claim._id,
+    meta: {
+      claimantName,
+      requestedSignerName: requestedSigner.name,
+      petitionTitle: petition.title,
+    },
   });
 
   // Notify Admin via email

@@ -33,6 +33,9 @@ import {
   deleteAutoSignSchedule,
   triggerAutoSignTick,
   handleCronTick,
+  linkMotherChildPetitions,
+  unlinkMotherChildPetition,
+  getMotherChildHierarchy,
 } from "../controllers/adminController.js";
 import {
   getAdminPetitionReports,
@@ -165,6 +168,9 @@ router.get("/petitions/banner", adminAuth, getBannerPetitions);
 router.route("/petitions/:id/banner-feature").put(adminAuth, toggleBannerFeature).post(adminAuth, toggleBannerFeature);
 router.route("/petitions/:id/school-stall-map").put(adminAuth, toggleSchoolStallMap).post(adminAuth, toggleSchoolStallMap);
 router.route("/petitions/:id/slug").put(adminAuth, updatePetitionSlug).post(adminAuth, updatePetitionSlug);
+router.get("/petitions-hierarchy/mother-child", adminAuth, getMotherChildHierarchy);
+router.route("/petitions/link-mother-child").put(adminAuth, linkMotherChildPetitions).post(adminAuth, linkMotherChildPetitions);
+router.route("/petitions/:id/unlink-mother").put(adminAuth, unlinkMotherChildPetition).post(adminAuth, unlinkMotherChildPetition);
 router.get("/petitions", adminAuth, getAllPetitionsForAdmin);
 router.get("/petitions/:id", adminAuth, getPetitionById);
 router.get("/petitions/:id/signatures", adminAuth, getAdminPetitionSignatures);

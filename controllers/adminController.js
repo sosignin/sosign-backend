@@ -1365,3 +1365,175 @@ export const handleCronTick = async (req, res) => {
   }
 };
 
+// @desc    Link child petition(s) to a mother petition
+// @route   PUT /api/admin/petitions/link-mother-child
+// @access  Private/Admin
+export const linkMotherChildPetitions = async (req, res) => {
+  try {
+    const { motherPetitionId, childPetitionIds } = req.body;
+
+    if (!motherPetitionId) {
+      return res.status(400).json({ success: false, message: "Please select a Mother Petition" });
+    }
+
+    const childIds = Array.isArray(childPetitionIds) ? childPetitionIds : [childPetitionIds];
+    const validChildIds = childIds.filter(id => Boolean(id) && id.toString() !== motherPetitionId.toString());
+
+    if (validChildIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Please select at least one valid Child Petition (cannot be the mother petition itself)"
+      });
+    }
+
+    const mother = await Petition.findById(motherPetitionId);
+    if (!mother) {
+      return res.status(404).json({ success: false, message: "Mother petition not found" });
+    }
+
+    // Check if mother petition is currently a child of another petition
+    if (mother.motherPetition) {
+      return res.status(400).json({
+        success: false,
+        message: "This petition is already linked as a Child of another petition. A child cannot be designated as a mother petition."
+      });
+    }
+
+    // Update each child petition
+    let linkedCount = 0;
+    const linkedTitles = [];
+
+    for (const childId of validChildIds) {
+      const child = await Petition.findById(childId);
+      if (!child) continue;
+
+      // Ensure child is not a mother with existing children (avoiding multi-level cycles)
+      const isAlreadyMother = await Petition.exists({ motherPetition: childId });
+      if (isAlreadyMother) {
+        return res.status(400).json({
+          success: false,
+          message: `Petition "${child.title}" is already a Mother petition with linked sub-petitions. Multi-level nesting is not permitted.`
+        });
+      }
+
+      child.motherPetition = mother._id;
+      await child.save();
+      linkedCount++;
+      linkedTitles.push(child.title);
+    }
+
+    // Trigger revalidation for frontend pages
+    triggerRevalidation("/currentpetitions");
+    triggerRevalidation(`/currentpetitions/${mother.slug}`);
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully linked ${linkedCount} petition(s) as Child under Mother Petition "${mother.title}"`,
+      mother: {
+        _id: mother._id,
+        title: mother.title,
+        slug: mother.slug,
+      },
+      linkedCount,
+      linkedTitles,
+    });
+  } catch (error) {
+    console.error("Error linking mother/child petitions:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Unlink a child petition from its mother
+// @route   PUT /api/admin/petitions/:id/unlink-mother
+// @access  Private/Admin
+export const unlinkMotherChildPetition = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const petition = await Petition.findById(id);
+
+    if (!petition) {
+      return res.status(404).json({ success: false, message: "Petition not found" });
+    }
+
+    const oldMotherId = petition.motherPetition;
+    petition.motherPetition = null;
+    await petition.save();
+
+    triggerRevalidation("/currentpetitions");
+    triggerRevalidation(`/currentpetitions/${petition.slug}`);
+
+    if (oldMotherId) {
+      const oldMother = await Petition.findById(oldMotherId).select("slug");
+      if (oldMother?.slug) {
+        triggerRevalidation(`/currentpetitions/${oldMother.slug}`);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully unlinked "${petition.title}" from mother petition`,
+    });
+  } catch (error) {
+    console.error("Error unlinking child petition:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Get all mother petitions and their child petitions + options
+// @route   GET /api/admin/petitions-hierarchy/mother-child
+// @access  Private/Admin
+export const getMotherChildHierarchy = async (req, res) => {
+  try {
+    // 1. Find all active mother-child groupings
+    const childGroupings = await Petition.aggregate([
+      { $match: { motherPetition: { $ne: null } } },
+      {
+        $group: {
+          _id: "$motherPetition",
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const motherIds = childGroupings.map(g => g._id);
+
+    // Fetch mothers with their populated child documents
+    const mothers = await Petition.find({ _id: { $in: motherIds } })
+      .select("title slug numberOfSignatures approved country petitionStarter createdAt")
+      .lean();
+
+    const allChildren = await Petition.find({ motherPetition: { $in: motherIds } })
+      .select("title slug numberOfSignatures approved country petitionStarter motherPetition createdAt")
+      .lean();
+
+    // Group children under each mother
+    const clusters = mothers.map(m => {
+      const children = allChildren.filter(c => c.motherPetition?.toString() === m._id.toString());
+      const totalCombinedSigs = (m.numberOfSignatures || 0) + children.reduce((acc, c) => acc + (c.numberOfSignatures || 0), 0);
+      return {
+        ...m,
+        children,
+        childrenCount: children.length,
+        combinedSignatures: totalCombinedSigs,
+      };
+    });
+
+    // 2. Return all petitions in a lightweight list for dropdown selectors
+    const allPetitions = await Petition.find()
+      .select("title slug numberOfSignatures country approved motherPetition")
+      .populate("motherPetition", "title")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      clusters,
+      allPetitions,
+    });
+  } catch (error) {
+    console.error("Error fetching mother-child hierarchy:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+

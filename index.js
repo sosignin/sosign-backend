@@ -40,6 +40,7 @@ import newsletterRoutes from "./routes/newsletterRoutes.js";
 import petitionReportRoutes from "./routes/petitionReportRoutes.js";
 import trafficRoutes from "./routes/trafficRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
+import adminNotificationRoutes from "./routes/adminNotificationRoutes.js";
 
 
 // Middleware
@@ -244,6 +245,7 @@ app.get("/health", (req, res) => {
 // API Routes
 app.use("/api/users", userRoutes);
 app.use("/api/petitions", petitionRoutes);
+app.use("/api/admin/notifications", adminNotificationRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/comments", commentRoutes);
 app.use("/api/successful-petitions", successfulPetitionRoutes);

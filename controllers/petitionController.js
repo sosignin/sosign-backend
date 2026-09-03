@@ -7,6 +7,7 @@ import Wallet from "../models/walletModel.js";
 import SuccessfulPetition from "../models/successfulPetitionModel.js";
 import cloudinary from "../config/cloudinary.js";
 import { sendPetitionNotificationEmails } from "../config/emailConfig.js";
+import createAdminNotification from "../utils/adminNotifier.js";
 import {
   normalizeAadhaarNumber,
   isValidAadhaarNumber,
@@ -405,6 +406,20 @@ const createPetition = asyncHandler(async (req, res) => {
       );
     }
 
+    // Trigger Admin Notification
+    createAdminNotification({
+      category: "petition_approval",
+      title: "New Petition for Approval",
+      message: `Petition "${petition.title}" submitted by ${petition.petitionStarter?.name || "User"}`,
+      link: "/dashboard/petition-approval",
+      relatedId: petition._id,
+      meta: {
+        petitionTitle: petition.title,
+        petitionerName: petition.petitionStarter?.name,
+        country: petition.country,
+      },
+    });
+
     res.status(201).json({
       success: true,
       message: "Petition created successfully",
@@ -529,16 +544,31 @@ const getAllPetitionsForAdmin = asyncHandler(async (req, res) => {
       "-signatures -petitionStarter.location -petitionStarter.mobile -petitionStarter.aadharNumber -petitionStarter.panNumber -petitionStarter.voterNumber -petitionStarter.pincode -petitionStarter.mpConstituencyNumber -petitionStarter.mlaConstituencyNumber"
     )
     .populate("petitionStarter.user", "name email designation profilePicture")
+    .populate("motherPetition", "title slug numberOfSignatures")
     .sort({ createdAt: -1 });
 
   if (!isAll) {
     findQuery = findQuery.skip(skip).limit(limit);
   }
 
-  const [petitions, totalPetitions] = await Promise.all([
+  const [rawPetitions, totalPetitions, childCounts] = await Promise.all([
     findQuery.lean(),
     Petition.countDocuments(query),
+    Petition.aggregate([
+      { $match: { motherPetition: { $ne: null } } },
+      { $group: { _id: "$motherPetition", count: { $sum: 1 } } }
+    ])
   ]);
+
+  const childCountMap = {};
+  childCounts.forEach(c => {
+    if (c._id) childCountMap[c._id.toString()] = c.count;
+  });
+
+  const petitions = rawPetitions.map(p => ({
+    ...p,
+    subPetitionsCount: childCountMap[p._id.toString()] || 0
+  }));
 
   res.status(200).json({
     petitions,
@@ -566,7 +596,7 @@ const getPetitionById = asyncHandler(async (req, res) => {
     petition = await Petition.findById(idOrSlug)
       .populate(
         "petitionStarter.user",
-        "name email designation uniqueCode profilePicture",
+        "name email designation uniqueCode profilePicture socialLinks",
       )
       .populate("motherPetition", "title slug petitionDetails.image numberOfSignatures approved hidden")
       .select({ signatures: { $slice: -20 } })
@@ -579,7 +609,7 @@ const getPetitionById = asyncHandler(async (req, res) => {
     petition = await Petition.findOne({ slug: idOrSlug })
       .populate(
         "petitionStarter.user",
-        "name email designation uniqueCode profilePicture",
+        "name email designation uniqueCode profilePicture socialLinks",
       )
       .populate("motherPetition", "title slug petitionDetails.image numberOfSignatures approved hidden")
       .select({ signatures: { $slice: -20 } })
@@ -923,6 +953,19 @@ const updatePetition = asyncHandler(async (req, res) => {
     };
 
     const updatedPetition = await petition.save();
+
+    // Trigger Admin Notification for pending updates
+    createAdminNotification({
+      category: "petition_approval",
+      title: "Petition Updates Submitted",
+      message: `Updates submitted for "${petition.title}" by petitioner awaiting review`,
+      link: "/dashboard/petition-approval",
+      relatedId: petition._id,
+      meta: {
+        petitionTitle: petition.title,
+        petitionerName: petition.petitionStarter?.name,
+      },
+    });
 
     return res.status(200).json({
       _id: updatedPetition._id,

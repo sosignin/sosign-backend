@@ -2,6 +2,7 @@ import WalletRequest from "../models/walletRequestModel.js";
 import Wallet from "../models/walletModel.js";
 import User from "../models/userModel.js";
 import { getPointsFromAmount, getTierFromAmount } from "../utils/billingUtils.js";
+import createAdminNotification from "../utils/adminNotifier.js";
 
 // Create a new wallet recharge request
 export const createWalletRequest = async (req, res) => {
@@ -63,6 +64,21 @@ export const uploadProof = async (req, res) => {
         request.screenshot = screenshot;
         request.status = "verification_pending";
         await request.save();
+
+        // Trigger Admin Notification
+        createAdminNotification({
+            category: "wallet_request",
+            title: "New Wallet Recharge Proof",
+            message: `User ${req.user?.name || "User"} uploaded payment proof for ₹${request.amount} (${request.points} points, ref: ${request.referenceId})`,
+            link: "/dashboard/wallet-requests",
+            relatedId: request._id,
+            meta: {
+                amount: request.amount,
+                points: request.points,
+                referenceId: request.referenceId,
+                userName: req.user?.name,
+            },
+        });
 
         res.status(200).json({
             message: "Proof uploaded successfully. Administration will verify soon.",

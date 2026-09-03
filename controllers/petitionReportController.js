@@ -3,6 +3,7 @@ import PetitionReport from "../models/petitionReportModel.js";
 import Petition from "../models/petitionModel.js";
 import User from "../models/userModel.js";
 import { sendEmail } from "../config/emailConfig.js";
+import createAdminNotification from "../utils/adminNotifier.js";
 
 // @desc    Submit a formal objection / report against a petition (Requires Aadhaar KYC)
 // @route   POST /api/reports/petition
@@ -55,6 +56,20 @@ export const submitPetitionReport = asyncHandler(async (req, res) => {
     reporterAadhaarName: req.user.aadhaarKyc?.name || req.user.name,
     reporterMaskedAadhaar: req.user.aadhaarKyc?.maskedAadhaar || "",
     status: "Pending",
+  });
+
+  // Trigger in-app Admin Notification
+  createAdminNotification({
+    category: "petition_report",
+    title: "New Petition Objection 🚩",
+    message: `Citizen filed objection: "${reason}" on petition "${petition.title}"`,
+    link: "/dashboard/petition-reports",
+    relatedId: report._id,
+    meta: {
+      petitionTitle: petition.title,
+      reason,
+      reporterName: req.user.name,
+    },
   });
 
   // Send instant email notification to Admin for immediate review

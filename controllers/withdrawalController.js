@@ -1,6 +1,7 @@
 import Withdrawal from "../models/withdrawalModel.js";
 import Crowdfunding from "../models/crowdfundingModel.js";
 import asyncHandler from "express-async-handler";
+import createAdminNotification from "../utils/adminNotifier.js";
 
 // @desc    Create a withdrawal request
 // @route   POST /api/withdrawals
@@ -39,6 +40,20 @@ const createWithdrawalRequest = asyncHandler(async (req, res) => {
     user: req.user._id,
     amount,
     bankDetails: campaign.bankDetails,
+  });
+
+  // Trigger Admin Notification
+  createAdminNotification({
+    category: "withdrawal_request",
+    title: "New Withdrawal Request",
+    message: `${req.user?.name || "Creator"} requested withdrawal of ₹${amount} for "${campaign.title}"`,
+    link: "/dashboard/withdrawals",
+    relatedId: withdrawal._id,
+    meta: {
+      amount,
+      campaignTitle: campaign.title,
+      userName: req.user?.name,
+    },
   });
 
   res.status(201).json(withdrawal);

@@ -2,6 +2,7 @@ import asyncHandler from "express-async-handler";
 import School from "../models/schoolModel.js";
 import StallReport from "../models/stallReportModel.js";
 import Petition from "../models/petitionModel.js";
+import createAdminNotification from "../utils/adminNotifier.js";
 
 // Helper: Haversine Geodesic Distance in Meters
 function calculateDistanceInMeters(lat1, lon1, lat2, lon2) {
@@ -212,6 +213,22 @@ export const createStallReport = asyncHandler(async (req, res) => {
     status: "pending",
   });
 
+  // Trigger Admin Notification
+  createAdminNotification({
+    category: "stall_report",
+    title: "New Stall Report 🚨",
+    message: `Citizen reported "${shopName}" within ${distanceFromSchoolMeters}m of ${school.name}, ${stallReport.city} (${grievanceId})`,
+    link: "/dashboard/stall-reports",
+    relatedId: stallReport._id,
+    meta: {
+      shopName,
+      schoolName: school.name,
+      city: stallReport.city,
+      distance: distanceFromSchoolMeters,
+      grievanceId,
+    },
+  });
+
   res.status(201).json({
     message: "Report submitted successfully! It will be visible once approved by admin.",
     report: stallReport,
@@ -337,6 +354,20 @@ export const requestNewSchool = asyncHandler(async (req, res) => {
     status: "pending",
     isApproved: false,
     requestedBy: req.user?._id,
+  });
+
+  // Trigger Admin Notification
+  createAdminNotification({
+    category: "school_request",
+    title: "New School Request 🏫",
+    message: `Citizen requested addition of school "${newSchool.name}" in ${newSchool.city}`,
+    link: "/dashboard/school-requests",
+    relatedId: newSchool._id,
+    meta: {
+      schoolName: newSchool.name,
+      city: newSchool.city,
+      requestedBy: req.user?.name,
+    },
   });
 
   res.status(201).json({
@@ -484,6 +515,21 @@ export const submitStallDefense = asyncHandler(async (req, res) => {
   });
 
   await report.save();
+
+  // Trigger Admin Notification
+  createAdminNotification({
+    category: "stall_dispute",
+    title: "New Stall Dispute Defense 🛡️",
+    message: `Vendor "${vendorName}" submitted a dispute defense for stall "${report.shopName}" (${report.grievanceId || report.city})`,
+    link: "/dashboard/stall-disputes",
+    relatedId: report._id,
+    meta: {
+      vendorName,
+      shopName: report.shopName,
+      grievanceId: report.grievanceId,
+      reason,
+    },
+  });
 
   res.status(201).json({
     message: "Your defense/dispute request has been submitted successfully to the admin for review.",

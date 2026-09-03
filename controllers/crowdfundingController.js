@@ -1,6 +1,7 @@
 import Crowdfunding from "../models/crowdfundingModel.js";
 import Withdrawal from "../models/withdrawalModel.js";
 import asyncHandler from "express-async-handler";
+import createAdminNotification from "../utils/adminNotifier.js";
 import {
   normalizeAadhaarNumber,
   isValidAadhaarNumber,
@@ -175,6 +176,22 @@ const createCampaign = asyncHandler(async (req, res) => {
   };
 
   const campaign = await Crowdfunding.create(campaignData);
+
+  // Trigger Admin Notification
+  createAdminNotification({
+    category: "crowdfunding_approval",
+    title: "New Crowdfunding Campaign",
+    message: `Campaign "${title}" submitted for approval (Goal: ₹${goalAmount}) by ${req.user?.name || "Organizer"}`,
+    link: "/dashboard/crowdfunding",
+    relatedId: campaign._id,
+    meta: {
+      title,
+      goalAmount,
+      organizerName: req.user?.name,
+      category,
+    },
+  });
+
   res.status(201).json(campaign);
 });
 
