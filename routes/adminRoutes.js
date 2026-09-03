@@ -32,6 +32,7 @@ import {
   cancelAutoSignSchedule,
   deleteAutoSignSchedule,
   triggerAutoSignTick,
+  handleCronTick,
 } from "../controllers/adminController.js";
 import {
   getAdminPetitionReports,
@@ -124,6 +125,8 @@ router.patch("/auto-sign/schedules/:id/resume", adminAuth, resumeAutoSignSchedul
 router.patch("/auto-sign/schedules/:id/cancel", adminAuth, cancelAutoSignSchedule);
 router.delete("/auto-sign/schedules/:id", adminAuth, deleteAutoSignSchedule);
 router.post("/auto-sign/tick", adminAuth, triggerAutoSignTick);
+router.get("/auto-sign/cron-tick", handleCronTick);
+router.post("/auto-sign/cron-tick", handleCronTick);
 
 // Google Search Console integration
 router.get("/gsc/status", adminAuth, getGscStatus);

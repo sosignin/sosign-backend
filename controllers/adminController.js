@@ -1324,3 +1324,44 @@ export const triggerAutoSignTick = async (req, res) => {
   }
 };
 
+// @desc    External cron tick endpoint for cPanel Cron / Webhook
+// @route   GET/POST /api/admin/auto-sign/cron-tick
+// @access  Public with key (?key=sosign_cron_2026) or Private/Admin
+export const handleCronTick = async (req, res) => {
+  try {
+    const providedKey = req.query.key || req.headers["x-cron-key"];
+    const expectedKey = process.env.CRON_SECRET || "sosign_cron_2026";
+
+    // Allow if valid cron key is provided, or if admin token is valid
+    const hasValidKey = providedKey && (providedKey === expectedKey || providedKey === process.env.JWT_SECRET);
+
+    let isAdminAuth = false;
+    if (req.cookies?.token) {
+      try {
+        const decoded = jwt.verify(req.cookies.token, process.env.JWT_SECRET);
+        if (decoded && decoded.email) isAdminAuth = true;
+      } catch (err) {
+        // Ignore cookie verification failure
+      }
+    }
+
+    if (!hasValidKey && !isAdminAuth) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: Please provide a valid ?key= parameter or admin session",
+      });
+    }
+
+    await processDueSchedules();
+
+    res.status(200).json({
+      success: true,
+      message: "Auto-sign cron tick executed successfully",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("[CronTick] Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
