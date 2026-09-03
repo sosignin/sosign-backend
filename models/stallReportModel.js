@@ -18,6 +18,30 @@ const stallReportSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    district: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+    taluka: {
+      type: String,
+      trim: true,
+    },
+    villageTown: {
+      type: String,
+      trim: true,
+    },
+    landmark: {
+      type: String,
+      trim: true,
+    },
+    grievanceId: {
+      type: String,
+      trim: true,
+      unique: true,
+      sparse: true,
+      index: true,
+    },
     schoolId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "School",

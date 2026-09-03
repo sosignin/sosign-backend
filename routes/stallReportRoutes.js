@@ -15,6 +15,7 @@ import {
   submitStallDefense,
   getStallDisputes,
   resolveStallDispute,
+  getUserStallReports,
 } from "../controllers/stallReportController.js";
 import { protect } from "../middleware/authMiddleware.js";
 import { adminAuth } from "../middleware/adminAuth.js";
@@ -29,7 +30,8 @@ router.get("/public-approved", getApprovedStallReports);
 router.get("/approved/:petitionId", getApprovedStallReports);
 router.post("/:id/defend", submitStallDefense);
 
-// User submission route (Signers only)
+// User submission & dashboard routes (Authenticated users)
+router.get("/my-reports", protect, getUserStallReports);
 router.post("/", protect, upload.array("images", 5), createStallReport);
 router.post("/schools/request", protect, requestNewSchool);
 

@@ -131,6 +131,10 @@ export const createStallReport = asyncHandler(async (req, res) => {
   const {
     petitionId,
     city,
+    district,
+    taluka,
+    villageTown,
+    landmark,
     schoolId,
     shopName,
     description,
@@ -183,10 +187,19 @@ export const createStallReport = asyncHandler(async (req, res) => {
     shopLng
   );
 
+  // Generate unique human-readable Grievance ID e.g. GRV-MH-8492
+  const randomCode = Math.floor(1000 + Math.random() * 9000);
+  const grievanceId = `GRV-MH-${Date.now().toString().slice(-4)}${randomCode}`;
+
   const stallReport = await StallReport.create({
     petitionId,
     userId: req.user._id,
-    city: city || school.city,
+    city: city || district || school.city,
+    district: district || city || school.city,
+    taluka: taluka || "",
+    villageTown: villageTown || "",
+    landmark: landmark || "",
+    grievanceId,
     schoolId,
     shopName,
     description,
@@ -203,6 +216,18 @@ export const createStallReport = asyncHandler(async (req, res) => {
     message: "Report submitted successfully! It will be visible once approved by admin.",
     report: stallReport,
   });
+});
+
+// @desc    Get logged-in citizen's submitted reports / complaints dashboard
+// @route   GET /api/stall-reports/my-reports
+// @access  Private
+export const getUserStallReports = asyncHandler(async (req, res) => {
+  const reports = await StallReport.find({ userId: req.user._id })
+    .populate("schoolId", "name city address location")
+    .populate("petitionId", "title slug")
+    .sort({ createdAt: -1 });
+
+  res.status(200).json({ reports });
 });
 
 // @desc    Get approved reports for a petition (and optional city)
