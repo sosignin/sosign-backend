@@ -11,6 +11,8 @@ import Notification from "../models/notificationModel.js";
 import Visitor from "../models/visitorModel.js";
 import Traffic from "../models/trafficModel.js";
 import Blog from "../models/blogModel.js";
+import AutoSignSchedule from "../models/autoSignScheduleModel.js";
+import { processDueSchedules } from "../utils/autoSignScheduler.js";
 
 const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;
 
@@ -1117,3 +1119,208 @@ export const updatePetitionSlug = async (req, res) => {
     res.status(500).json({ message: "Failed to update petition slug: " + error.message });
   }
 };
+
+// @desc    Get all auto-sign schedules
+// @route   GET /api/admin/auto-sign/schedules
+// @access  Private/Admin
+export const getAutoSignSchedules = async (req, res) => {
+  try {
+    const schedules = await AutoSignSchedule.find()
+      .populate("petition", "title slug numberOfSignatures expectedSignatures category image")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      schedules,
+    });
+  } catch (error) {
+    console.error("Error fetching auto-sign schedules:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Create a new auto-sign schedule
+// @route   POST /api/admin/auto-sign/schedules
+// @access  Private/Admin
+export const createAutoSignSchedule = async (req, res) => {
+  try {
+    const {
+      petitionId,
+      totalSignaturesTarget,
+      batchSize = 5,
+      intervalSeconds,
+      intervalMinutes = 5,
+      useSameMobile = "9999990000",
+      randomJitter = true,
+      startImmediately = true,
+    } = req.body;
+
+    if (!petitionId) {
+      return res.status(400).json({ success: false, message: "Target petition is required" });
+    }
+
+    const petition = await Petition.findById(petitionId);
+    if (!petition) {
+      return res.status(404).json({ success: false, message: "Target petition not found" });
+    }
+
+    const target = parseInt(totalSignaturesTarget, 10);
+    if (!target || target < 1) {
+      return res.status(400).json({ success: false, message: "Total signatures target must be at least 1" });
+    }
+
+    const batch = Math.max(1, parseInt(batchSize, 10) || 5);
+    let finalIntervalSeconds = parseInt(intervalSeconds, 10);
+    if (!finalIntervalSeconds) {
+      finalIntervalSeconds = Math.max(5, Math.round(parseFloat(intervalMinutes || 5) * 60));
+    }
+
+    const nextRunAt = startImmediately ? new Date(Date.now() + 2000) : new Date(Date.now() + finalIntervalSeconds * 1000);
+
+    const schedule = await AutoSignSchedule.create({
+      petition: petitionId,
+      totalSignaturesTarget: target,
+      signaturesAdded: 0,
+      batchSize: batch,
+      intervalSeconds: finalIntervalSeconds,
+      useSameMobile: useSameMobile || "9999990000",
+      randomJitter: randomJitter !== false,
+      status: "running",
+      nextRunAt,
+      logs: [
+        {
+          addedCount: 0,
+          timestamp: new Date(),
+          currentTotal: 0,
+          petitionSignatureCount: petition.numberOfSignatures || 0,
+          note: `Schedule created: Target ${target} signatures in batches of ${batch} every ${finalIntervalSeconds}s`,
+        },
+      ],
+    });
+
+    const populated = await AutoSignSchedule.findById(schedule._id).populate("petition", "title slug numberOfSignatures");
+
+    res.status(201).json({
+      success: true,
+      message: `Auto-sign schedule started for "${petition.title}"!`,
+      schedule: populated,
+    });
+  } catch (error) {
+    console.error("Error creating auto-sign schedule:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Pause an auto-sign schedule
+// @route   PATCH /api/admin/auto-sign/schedules/:id/pause
+// @access  Private/Admin
+export const pauseAutoSignSchedule = async (req, res) => {
+  try {
+    const schedule = await AutoSignSchedule.findById(req.params.id);
+    if (!schedule) {
+      return res.status(404).json({ success: false, message: "Schedule not found" });
+    }
+
+    schedule.status = "paused";
+    await schedule.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Schedule paused",
+      schedule,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Resume an auto-sign schedule
+// @route   PATCH /api/admin/auto-sign/schedules/:id/resume
+// @access  Private/Admin
+export const resumeAutoSignSchedule = async (req, res) => {
+  try {
+    const schedule = await AutoSignSchedule.findById(req.params.id);
+    if (!schedule) {
+      return res.status(404).json({ success: false, message: "Schedule not found" });
+    }
+
+    if (schedule.signaturesAdded >= schedule.totalSignaturesTarget) {
+      schedule.status = "completed";
+      await schedule.save();
+      return res.status(400).json({ success: false, message: "Schedule has already reached its target" });
+    }
+
+    schedule.status = "running";
+    schedule.nextRunAt = new Date(Date.now() + 2000); // Resume in 2s
+    await schedule.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Schedule resumed",
+      schedule,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Cancel an auto-sign schedule
+// @route   PATCH /api/admin/auto-sign/schedules/:id/cancel
+// @access  Private/Admin
+export const cancelAutoSignSchedule = async (req, res) => {
+  try {
+    const schedule = await AutoSignSchedule.findById(req.params.id);
+    if (!schedule) {
+      return res.status(404).json({ success: false, message: "Schedule not found" });
+    }
+
+    schedule.status = "cancelled";
+    schedule.nextRunAt = null;
+    await schedule.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Schedule cancelled",
+      schedule,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Delete an auto-sign schedule
+// @route   DELETE /api/admin/auto-sign/schedules/:id
+// @access  Private/Admin
+export const deleteAutoSignSchedule = async (req, res) => {
+  try {
+    const schedule = await AutoSignSchedule.findById(req.params.id);
+    if (!schedule) {
+      return res.status(404).json({ success: false, message: "Schedule not found" });
+    }
+
+    await AutoSignSchedule.findByIdAndDelete(req.params.id);
+
+    res.status(200).json({
+      success: true,
+      message: "Schedule deleted successfully",
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Manually trigger scheduler tick (can be called by external cron or webhook)
+// @route   POST /api/admin/auto-sign/tick
+// @access  Private/Admin
+export const triggerAutoSignTick = async (req, res) => {
+  try {
+    await processDueSchedules();
+    res.status(200).json({
+      success: true,
+      message: "Scheduler heartbeat executed successfully",
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+

@@ -25,6 +25,13 @@ import {
   getBannerPetitions,
   toggleSchoolStallMap,
   updatePetitionSlug,
+  getAutoSignSchedules,
+  createAutoSignSchedule,
+  pauseAutoSignSchedule,
+  resumeAutoSignSchedule,
+  cancelAutoSignSchedule,
+  deleteAutoSignSchedule,
+  triggerAutoSignTick,
 } from "../controllers/adminController.js";
 import {
   getAdminPetitionReports,
@@ -108,6 +115,15 @@ router.post("/dummy/petition", adminAuth, createDummyPetition);
 router.post("/dummy/sign", adminAuth, addDummySignatures);
 router.post("/reset-kyc", adminAuth, resetUserKyc);
 router.post("/seo-keywords", adminAuth, getSeoKeywords);
+
+// Auto-sign schedule routes
+router.get("/auto-sign/schedules", adminAuth, getAutoSignSchedules);
+router.post("/auto-sign/schedules", adminAuth, createAutoSignSchedule);
+router.patch("/auto-sign/schedules/:id/pause", adminAuth, pauseAutoSignSchedule);
+router.patch("/auto-sign/schedules/:id/resume", adminAuth, resumeAutoSignSchedule);
+router.patch("/auto-sign/schedules/:id/cancel", adminAuth, cancelAutoSignSchedule);
+router.delete("/auto-sign/schedules/:id", adminAuth, deleteAutoSignSchedule);
+router.post("/auto-sign/tick", adminAuth, triggerAutoSignTick);
 
 // Google Search Console integration
 router.get("/gsc/status", adminAuth, getGscStatus);

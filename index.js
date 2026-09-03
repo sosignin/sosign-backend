@@ -49,6 +49,7 @@ import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
 import Category from "./models/categoryModel.js";
 import Plan from "./models/planModel.js";
 import Faq from "./models/faqModel.js";
+import { initAutoSignScheduler } from "./utils/autoSignScheduler.js";
 
 // Load environment variables
 dotenv.config();
@@ -72,6 +73,13 @@ connectDB().then(async () => {
     await Faq.seedDefaults();
   } catch (error) {
     console.error("Error seeding FAQs:", error.message);
+  }
+
+  // Initialize auto-sign background scheduler
+  try {
+    initAutoSignScheduler();
+  } catch (error) {
+    console.error("Error initializing auto-sign scheduler:", error.message);
   }
 });
 

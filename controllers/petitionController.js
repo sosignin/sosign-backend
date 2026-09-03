@@ -501,9 +501,10 @@ const getPetitions = asyncHandler(async (req, res) => {
 // @route   GET /api/admin/petitions (admin only)
 // @access  Private/Admin
 const getAllPetitionsForAdmin = asyncHandler(async (req, res) => {
+  const isAll = req.query.all === "true" || req.query.limit === "all" || req.query.limit === "0";
   const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 10;
-  const skip = (page - 1) * limit;
+  const limit = isAll ? 0 : (parseInt(req.query.limit) || 10);
+  const skip = isAll ? 0 : (page - 1) * limit;
 
   const { country, search } = req.query;
 
@@ -523,26 +524,29 @@ const getAllPetitionsForAdmin = asyncHandler(async (req, res) => {
   }
 
   // Admin sees ALL petitions (approved and unapproved)
+  let findQuery = Petition.find(query)
+    .select(
+      "-signatures -petitionStarter.location -petitionStarter.mobile -petitionStarter.aadharNumber -petitionStarter.panNumber -petitionStarter.voterNumber -petitionStarter.pincode -petitionStarter.mpConstituencyNumber -petitionStarter.mlaConstituencyNumber"
+    )
+    .populate("petitionStarter.user", "name email designation profilePicture")
+    .sort({ createdAt: -1 });
+
+  if (!isAll) {
+    findQuery = findQuery.skip(skip).limit(limit);
+  }
+
   const [petitions, totalPetitions] = await Promise.all([
-    Petition.find(query)
-      .select(
-        "-signatures -petitionStarter.location -petitionStarter.mobile -petitionStarter.aadharNumber -petitionStarter.panNumber -petitionStarter.voterNumber -petitionStarter.pincode -petitionStarter.mpConstituencyNumber -petitionStarter.mlaConstituencyNumber"
-      )
-      .populate("petitionStarter.user", "name email designation profilePicture")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean(),
+    findQuery.lean(),
     Petition.countDocuments(query),
   ]);
 
   res.status(200).json({
     petitions,
-    currentPage: page,
-    totalPages: Math.ceil(totalPetitions / limit),
+    currentPage: isAll ? 1 : page,
+    totalPages: isAll ? 1 : Math.ceil(totalPetitions / (limit || 1)),
     totalPetitions,
-    hasNextPage: page < Math.ceil(totalPetitions / limit),
-    hasPrevPage: page > 1,
+    hasNextPage: isAll ? false : page < Math.ceil(totalPetitions / (limit || 1)),
+    hasPrevPage: isAll ? false : page > 1,
   });
 });
 
