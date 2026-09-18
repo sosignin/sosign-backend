@@ -131,7 +131,7 @@ const petitionSchema = mongoose.Schema(
     ],
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected"],
+      enum: ["pending", "approved", "rejected", "victory"],
       default: "pending",
     },
     rejectionReason: {
@@ -140,6 +140,14 @@ const petitionSchema = mongoose.Schema(
     approved: {
       type: Boolean,
       default: false,
+    },
+    isVictory: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    victoryDeclaredAt: {
+      type: Date,
     },
     hasPendingUpdates: {
       type: Boolean,

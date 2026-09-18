@@ -15,6 +15,7 @@ const adminNotificationSchema = new mongoose.Schema(
         "signature_claim",      // Signature Claims (/dashboard/requested-signature-claims)
         "download_request",     // Download Requests (/dashboard/download-requests)
         "hide_request",         // Hide Requests (/dashboard/hide-requests)
+        "victory_request",      // Victory Requests (/dashboard/victory-requests)
         "contact_message",      // Contact Messages (/dashboard/contact-messages)
         "wallet_request",       // Wallet Requests (/dashboard/wallet-requests)
         "crowdfunding_approval",// Crowdfunding Approval (/dashboard/crowdfunding)

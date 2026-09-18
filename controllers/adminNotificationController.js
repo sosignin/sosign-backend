@@ -8,6 +8,7 @@ import PetitionReport from "../models/petitionReportModel.js";
 import RequestedSignatureClaim from "../models/requestedSignatureClaimModel.js";
 import DownloadRequest from "../models/downloadRequestModel.js";
 import HideRequest from "../models/hideRequestModel.js";
+import VictoryRequest from "../models/victoryRequestModel.js";
 import Contact from "../models/contactModel.js";
 import WalletRequest from "../models/walletRequestModel.js";
 import Crowdfunding from "../models/crowdfundingModel.js";
@@ -79,6 +80,7 @@ export const getAdminNotificationCounts = asyncHandler(async (req, res) => {
     signatureClaimsCount,
     downloadRequestsCount,
     hideRequestsCount,
+    victoryRequestsCount,
     contactMessagesCount,
     walletRequestsCount,
     crowdfundingCount,
@@ -96,7 +98,7 @@ export const getAdminNotificationCounts = asyncHandler(async (req, res) => {
       ],
     }).catch(() => 0),
 
-    // 2. Comment Approval (unapproved comments)
+    // 2. Comment Approval (pending citizen comments)
     Comment.countDocuments({ isApproved: false }).catch(() => 0),
 
     // 3. Stall Reports (pending citizen stall reports)
@@ -124,18 +126,21 @@ export const getAdminNotificationCounts = asyncHandler(async (req, res) => {
     // 9. Hide Requests (pending petition hide requests)
     HideRequest.countDocuments({ status: "pending" }).catch(() => 0),
 
-    // 10. Contact Messages (unread visitor inquiries)
+    // 10. Victory Requests (pending petition victory requests)
+    VictoryRequest.countDocuments({ status: "pending" }).catch(() => 0),
+
+    // 11. Contact Messages (unread visitor inquiries)
     Contact.countDocuments({ status: "unread" }).catch(() => 0),
 
-    // 11. Wallet Requests (pending UPI recharge proof verifications)
+    // 12. Wallet Requests (pending UPI recharge proof verifications)
     WalletRequest.countDocuments({
       status: { $in: ["pending", "verification_pending"] },
     }).catch(() => 0),
 
-    // 12. Crowdfunding Campaigns (unapproved campaigns)
+    // 13. Crowdfunding Campaigns (unapproved campaigns)
     Crowdfunding.countDocuments({ approved: false }).catch(() => 0),
 
-    // 13. Withdrawal Requests (pending campaign funds withdrawals)
+    // 14. Withdrawal Requests (pending campaign funds withdrawals)
     Withdrawal.countDocuments({ status: "pending" }).catch(() => 0),
 
     // Stored unread admin notifications count
@@ -159,6 +164,7 @@ export const getAdminNotificationCounts = asyncHandler(async (req, res) => {
     signatureClaims: signatureClaimsCount,
     downloadRequests: downloadRequestsCount,
     hideRequests: hideRequestsCount,
+    victoryRequests: victoryRequestsCount,
     contactMessages: contactMessagesCount,
     walletRequests: walletRequestsCount,
     crowdfunding: crowdfundingCount,
