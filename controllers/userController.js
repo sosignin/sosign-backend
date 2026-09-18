@@ -422,32 +422,67 @@ const forgotPassword = asyncHandler(async (req, res) => {
   try {
     const { sendEmail } = await import('../config/emailConfig.js');
 
-    const emailHtml = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #F43676;">SoSign</h1>
-        </div>
-        <h2 style="color: #1a1a2e;">Password Reset Request</h2>
-        <p style="color: #333; line-height: 1.6;">
-          Hi ${user.name},
+    const emailHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Your SoSign Password</title>
+</head>
+<body style="margin: 0; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f9fafb; color: #1f2937;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb;">
+    <tr>
+      <td style="padding: 30px; text-align: center; background-color: #ffffff; border-bottom: 1px solid #f3f4f6;">
+        <h1 style="margin: 0; color: #F43676; font-size: 28px; font-weight: 800;">SoSign</h1>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 30px;">
+        <h2 style="margin: 0 0 16px 0; color: #111827; font-size: 20px;">Password Reset Request</h2>
+        <p style="margin: 0 0 16px 0; line-height: 1.6; color: #4b5563; font-size: 15px;">
+          Hello ${user.name || 'User'},
         </p>
-        <p style="color: #333; line-height: 1.6;">
-          You requested to reset your password. Click the button below to create a new password:
+        <p style="margin: 0 0 24px 0; line-height: 1.6; color: #4b5563; font-size: 15px;">
+          We received a request to reset the password for your SoSign account. Click the button below to choose a new password:
         </p>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${resetUrl}" style="background: linear-gradient(to right, #F43676, #e02a60); color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
-            Reset Password
-          </a>
-        </div>
-        <p style="color: #666; font-size: 14px;">
-          This link will expire in 1 hour. If you didn't request a password reset, please ignore this email.
+        <table cellpadding="0" cellspacing="0" style="margin: 0 auto 24px auto;">
+          <tr>
+            <td align="center" style="border-radius: 8px; background: #F43676;">
+              <a href="${resetUrl}" target="_blank" style="display: inline-block; padding: 14px 30px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; border-radius: 8px;">Reset Password</a>
+            </td>
+          </tr>
+        </table>
+        <p style="margin: 0 0 12px 0; line-height: 1.5; color: #6b7280; font-size: 14px;">
+          If the button above does not work, copy and paste this link into your browser:
         </p>
-        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;" />
-        <p style="color: #999; font-size: 12px; text-align: center;">
-          © ${new Date().getFullYear()} SoSign. All rights reserved.
+        <p style="margin: 0 0 24px 0; word-break: break-all; color: #F43676; font-size: 13px;">
+          <a href="${resetUrl}" style="color: #F43676;">${resetUrl}</a>
         </p>
-      </div>
-    `;
+        <p style="margin: 0; line-height: 1.5; color: #9ca3af; font-size: 13px;">
+          This link will expire in 60 minutes. If you did not make this request, you can safely ignore this message.
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 20px 30px; background-color: #f9fafb; text-align: center; border-top: 1px solid #f3f4f6; color: #9ca3af; font-size: 12px;">
+        &copy; ${new Date().getFullYear()} SoSign. All rights reserved.<br>
+        India's Civic Engagement & Petition Platform
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+    const emailText = `Hello ${user.name || 'User'},
+
+We received a request to reset the password for your SoSign account.
+
+To choose a new password, visit the following link:
+${resetUrl}
+
+This link will expire in 60 minutes. If you did not make this request, you can safely ignore this message.
+
+© ${new Date().getFullYear()} SoSign. All rights reserved.`;
 
     let emailSent = false;
     let emailError = null;
@@ -457,7 +492,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
         user.email,
         'Reset Your Password - SoSign',
         emailHtml,
-        `Reset your password by visiting: ${resetUrl}`
+        emailText
       );
 
       if (emailResult.success) {
