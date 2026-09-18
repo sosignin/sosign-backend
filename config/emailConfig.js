@@ -10,36 +10,47 @@ const createTransporter = () => {
     return null;
   }
 
-  // For Gmail SMTP - use port 587 with TLS (more compatible with hosting providers)
+  // Clean values from environment variables
+  const emailUser = (process.env.EMAIL_USER || '').trim();
+  const rawPassword = process.env.EMAIL_PASSWORD || '';
+  // Strip enclosing quotes if stored as "password" in .env
+  const emailPassword = rawPassword.replace(/^["']|["']$/g, '').trim();
+
+  // For Gmail SMTP
   if (process.env.EMAIL_SERVICE === 'gmail') {
     return nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false, // use STARTTLS
+      service: 'gmail',
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD, // Use App Password for Gmail
+        user: emailUser,
+        pass: emailPassword, // Use App Password for Gmail
       },
       tls: {
-        rejectUnauthorized: false // Accept self-signed certificates
+        rejectUnauthorized: false, // Accept self-signed or shared certificates
       },
-      connectionTimeout: 10000, // 10 seconds
-      greetingTimeout: 10000,
-      socketTimeout: 10000,
-      debug: true,
-      logger: true,
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 15000,
     });
   }
 
-  // For custom SMTP
+  // For custom SMTP (cPanel, Postfix, SendGrid, etc.)
+  const port = Number(process.env.SMTP_PORT) || 465;
+  const isSecure = process.env.SMTP_SECURE === 'true' || port === 465;
+
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: process.env.SMTP_PORT || 587,
-    secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+    host: process.env.SMTP_HOST || 'mail.sosign.in',
+    port: port,
+    secure: isSecure,
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD,
+      user: emailUser,
+      pass: emailPassword,
     },
+    tls: {
+      rejectUnauthorized: false, // Prevent SSL certificate rejection on shared/cPanel hosts
+    },
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 15000,
   });
 };
 
@@ -207,8 +218,11 @@ export const sendEmail = async (to, subject, html, text) => {
       return { success: false, error: 'SMTP credentials not configured' };
     }
 
+    const fromAddress = (process.env.EMAIL_FROM || process.env.EMAIL_USER || '').trim();
+    const formattedFrom = fromAddress.includes('<') ? fromAddress : `"SoSign" <${fromAddress}>`;
+
     const mailOptions = {
-      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+      from: formattedFrom,
       to: to,
       subject: subject,
       html: html,

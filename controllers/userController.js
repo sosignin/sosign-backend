@@ -470,19 +470,21 @@ const forgotPassword = asyncHandler(async (req, res) => {
     }
 
     if (emailSent) {
-      console.log('Password reset email sent to:', user.email);
-      res.status(200).json({ message: "Password reset link has been sent to your email." });
-    } else {
-      console.warn("Password reset email delivery failed or skipped:", emailError);
-      console.log("==================================================");
-      console.log("DEVELOPMENT RESET URL:");
-      console.log(resetUrl);
-      console.log("==================================================");
-      
+      console.log('Password reset email successfully sent to:', user.email);
       res.status(200).json({
-        message: "Password reset link generated successfully.",
-        resetUrl,
-        warning: "Email could not be sent (SMTP not configured or failed). Use the link below."
+        success: true,
+        message: "Password reset link has been sent to your email. Please check your inbox or spam folder."
+      });
+    } else {
+      console.error("Password reset email delivery failed:", emailError);
+      // Clean up token if email delivery failed
+      user.passwordResetToken = null;
+      user.passwordResetExpires = null;
+      await user.save();
+
+      res.status(500).json({
+        success: false,
+        message: "Failed to deliver password reset email. Please try again later or contact support."
       });
     }
   } catch (error) {
