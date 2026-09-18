@@ -43,7 +43,7 @@ import {
   takeDownPetitionFromReport,
 } from "../controllers/petitionReportController.js";
 import { getSeoKeywords } from "../controllers/seoController.js";
-import { getGscStatus, getGscPerformance, inspectUrl, submitSitemap, publishToIndex } from "../controllers/gscController.js";
+import { getGscStatus, getGscPerformance, inspectUrl, submitSitemap, publishToIndex, autoIndexAll, uploadCredentials } from "../controllers/gscController.js";
 import {
   adminGetPlans,
   adminCreatePlan,
@@ -137,6 +137,8 @@ router.post("/gsc/performance", adminAuth, getGscPerformance);
 router.post("/gsc/inspect", adminAuth, inspectUrl);
 router.post("/gsc/submit-sitemap", adminAuth, submitSitemap);
 router.post("/gsc/publish", adminAuth, publishToIndex);
+router.post("/gsc/auto-index-all", adminAuth, autoIndexAll);
+router.post("/gsc/upload-credentials", adminAuth, uploadCredentials);
 
 // Admin file upload helper
 import upload from "../middleware/upload.js";

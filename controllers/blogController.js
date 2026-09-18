@@ -1,5 +1,7 @@
 import Blog from "../models/blogModel.js";
 import asyncHandler from "express-async-handler";
+import { autoIndexUrl } from "../utils/autoIndexerUtils.js";
+import { triggerRevalidation } from "../utils/revalidateUtils.js";
 
 // @desc    Get all published blogs
 // @route   GET /api/blogs
@@ -148,6 +150,12 @@ const createBlog = asyncHandler(async (req, res) => {
         isPublished: isPublished !== "false" && isPublished !== false,
     });
 
+    if (blog.isPublished) {
+        autoIndexUrl(`https://sosign.in/blog/${blog.slug}`, "URL_UPDATED");
+        triggerRevalidation(`/blog/${blog.slug}`);
+        triggerRevalidation("/blog");
+    }
+
     res.status(201).json(blog);
 });
 
@@ -203,6 +211,15 @@ const updateBlog = asyncHandler(async (req, res) => {
     blog.isPublished = isPublished !== undefined ? (isPublished !== "false" && isPublished !== false) : blog.isPublished;
 
     const updatedBlog = await blog.save();
+
+    if (updatedBlog.isPublished) {
+        autoIndexUrl(`https://sosign.in/blog/${updatedBlog.slug}`, "URL_UPDATED");
+        triggerRevalidation(`/blog/${updatedBlog.slug}`);
+        triggerRevalidation("/blog");
+    } else {
+        autoIndexUrl(`https://sosign.in/blog/${updatedBlog.slug}`, "URL_DELETED");
+    }
+
     res.json(updatedBlog);
 });
 
@@ -217,7 +234,11 @@ const deleteBlog = asyncHandler(async (req, res) => {
         throw new Error("Blog not found");
     }
 
+    const blogSlug = blog.slug;
     await blog.deleteOne();
+    autoIndexUrl(`https://sosign.in/blog/${blogSlug}`, "URL_DELETED");
+    triggerRevalidation(`/blog/${blogSlug}`);
+    triggerRevalidation("/blog");
     res.json({ message: "Blog removed successfully" });
 });
 
@@ -251,6 +272,14 @@ const togglePublished = asyncHandler(async (req, res) => {
 
     blog.isPublished = !blog.isPublished;
     await blog.save();
+
+    if (blog.isPublished) {
+        autoIndexUrl(`https://sosign.in/blog/${blog.slug}`, "URL_UPDATED");
+    } else {
+        autoIndexUrl(`https://sosign.in/blog/${blog.slug}`, "URL_DELETED");
+    }
+    triggerRevalidation(`/blog/${blog.slug}`);
+    triggerRevalidation("/blog");
 
     res.json({ isPublished: blog.isPublished });
 });

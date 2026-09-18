@@ -246,3 +246,113 @@ export const publishToIndex = async (req, res) => {
   }
 };
 
+/**
+ * Automatically index all published blogs and active petitions to Google & IndexNow
+ * POST /api/admin/gsc/auto-index-all
+ */
+export const autoIndexAll = async (req, res) => {
+  try {
+    const baseUrl = "https://sosign.in";
+
+    const Blog = (await import("../models/blogModel.js")).default;
+    const Petition = (await import("../models/petitionModel.js")).default;
+    const { notifyIndexNow, notifyGoogleIndexingApi, notifySitemapToGoogle } = await import("../utils/autoIndexerUtils.js");
+
+    const [blogs, petitions] = await Promise.all([
+      Blog.find({ isPublished: true }, "slug").lean(),
+      Petition.find({ status: "approved" }, "slug").lean(),
+    ]);
+
+    const coreUrls = [
+      baseUrl,
+      `${baseUrl}/blog`,
+      `${baseUrl}/currentpetitions`,
+      `${baseUrl}/about`,
+      `${baseUrl}/contact`,
+    ];
+
+    const blogUrls = blogs.map((b) => `${baseUrl}/blog/${b.slug}`);
+    const petitionUrls = petitions.map((p) => `${baseUrl}/currentpetitions/${p.slug}`);
+
+    const allUrls = [...coreUrls, ...blogUrls, ...petitionUrls];
+
+    // 1. Submit to IndexNow (Bing, Yandex, etc.) - instant search engine broadcast
+    const indexNowResult = await notifyIndexNow(allUrls);
+
+    // 2. Submit sitemap to Google Search Console
+    const sitemapResult = await notifySitemapToGoogle();
+
+    // 3. Submit blogs to Google Indexing API if service account is configured
+    let googleSuccessCount = 0;
+    const auth = getAuthClient();
+    if (auth) {
+      const topUrls = blogUrls.slice(0, 50);
+      for (const url of topUrls) {
+        try {
+          await notifyGoogleIndexingApi(url, "URL_UPDATED");
+          googleSuccessCount++;
+        } catch (e) {
+          console.warn(`[GSC] Error indexing ${url}:`, e.message);
+        }
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Indexed ${allUrls.length} total URLs to IndexNow. Google Indexing submitted: ${googleSuccessCount} URLs.`,
+      totalUrls: allUrls.length,
+      indexNowSuccess: indexNowResult.success,
+      googleConfigured: !!auth,
+      googleSubmitted: googleSuccessCount,
+      sitemapSubmitted: sitemapResult.success,
+    });
+  } catch (error) {
+    console.error("Auto Index All Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to execute automated indexing.",
+    });
+  }
+};
+
+/**
+ * Upload Google Service Account credentials.json from Admin Panel
+ * POST /api/admin/gsc/upload-credentials
+ */
+export const uploadCredentials = async (req, res) => {
+  try {
+    let jsonContent = null;
+
+    if (req.body?.credentials) {
+      jsonContent = typeof req.body.credentials === "string" 
+        ? JSON.parse(req.body.credentials) 
+        : req.body.credentials;
+    } else if (req.file) {
+      const fileRaw = fs.readFileSync(req.file.path, "utf8");
+      jsonContent = JSON.parse(fileRaw);
+    }
+
+    if (!jsonContent || !jsonContent.client_email || !jsonContent.private_key) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Google service account JSON. It must contain 'client_email' and 'private_key'.",
+      });
+    }
+
+    fs.writeFileSync(KEY_PATH, JSON.stringify(jsonContent, null, 2), "utf8");
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully installed Google Service Account for ${jsonContent.client_email}. Google Indexing is now active!`,
+      clientEmail: jsonContent.client_email,
+    });
+  } catch (error) {
+    console.error("Upload credentials error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to save credentials.json.",
+    });
+  }
+};
+
+
