@@ -620,6 +620,24 @@ const getPetitionById = asyncHandler(async (req, res) => {
   }
 
   if (petition) {
+    // Verify petition approval status
+    const isApproved =
+      (petition.approved === true ||
+        petition.status === "approved" ||
+        petition.status === "victory" ||
+        petition.isVictory === true) &&
+      petition.status !== "rejected" &&
+      petition.status !== "pending";
+
+    if (!isApproved) {
+      const isAdmin =
+        req.user && (req.user.role === "admin" || req.user.role === "superadmin");
+      if (!isAdmin) {
+        res.status(404);
+        throw new Error("Petition not found or is awaiting approval");
+      }
+    }
+
     // Find notable signers (Celebrities, Politicians, NGOs, etc.)
     // We search across ALL signatures for this petition
     const notableKeywords = [
@@ -1111,6 +1129,20 @@ const signPetition = asyncHandler(async (req, res) => {
   if (petition.isVictory || petition.status === "victory") {
     res.status(400);
     throw new Error("This petition has already achieved victory and is closed for new signatures.");
+  }
+
+  // Prevent signing if petition is not approved, pending, or rejected
+  const isApproved =
+    (petition.approved === true ||
+      petition.status === "approved" ||
+      petition.status === "victory" ||
+      petition.isVictory === true) &&
+    petition.status !== "rejected" &&
+    petition.status !== "pending";
+
+  if (!isApproved) {
+    res.status(400);
+    throw new Error("This petition is not currently active for signatures.");
   }
 
   // Check if the user is trying to sign their own petition
