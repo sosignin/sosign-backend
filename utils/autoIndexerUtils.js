@@ -8,21 +8,32 @@ const HOST = "sosign.in";
 const INDEXNOW_KEY = "sosign2026indexnowkey";
 const INDEXNOW_KEY_LOCATION = `https://${HOST}/${INDEXNOW_KEY}.txt`;
 
-/**
- * Returns Google Auth Client if credentials.json is present
- */
 export const getGoogleAuthClient = () => {
-  if (!fs.existsSync(KEY_PATH)) {
-    return null;
-  }
   try {
-    return new google.auth.GoogleAuth({
-      keyFile: KEY_PATH,
-      scopes: [
-        "https://www.googleapis.com/auth/webmasters",
-        "https://www.googleapis.com/auth/indexing",
-      ],
-    });
+    if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+      const credentials = typeof process.env.GOOGLE_SERVICE_ACCOUNT_JSON === "string"
+        ? JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON)
+        : process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+      return new google.auth.GoogleAuth({
+        credentials,
+        scopes: [
+          "https://www.googleapis.com/auth/webmasters",
+          "https://www.googleapis.com/auth/indexing",
+        ],
+      });
+    }
+
+    if (fs.existsSync(KEY_PATH)) {
+      return new google.auth.GoogleAuth({
+        keyFile: KEY_PATH,
+        scopes: [
+          "https://www.googleapis.com/auth/webmasters",
+          "https://www.googleapis.com/auth/indexing",
+        ],
+      });
+    }
+
+    return null;
   } catch (error) {
     console.error("[AutoIndexer] Failed to initialize Google Auth Client:", error.message);
     return null;

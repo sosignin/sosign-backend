@@ -6,21 +6,34 @@ import fs from "fs";
 const KEY_PATH = path.join(process.cwd(), "credentials.json");
 
 /**
- * Returns GSC Auth Client if credentials file exists, otherwise returns null
+ * Returns GSC Auth Client if credentials file or environment variable exists, otherwise returns null
  */
 const getAuthClient = () => {
-  if (!fs.existsSync(KEY_PATH)) {
-    return null;
-  }
-  
   try {
-    return new google.auth.GoogleAuth({
-      keyFile: KEY_PATH,
-      scopes: [
-        "https://www.googleapis.com/auth/webmasters",
-        "https://www.googleapis.com/auth/indexing"
-      ], // Read/Write access to GSC and Google Indexing API
-    });
+    if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+      const credentials = typeof process.env.GOOGLE_SERVICE_ACCOUNT_JSON === "string"
+        ? JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON)
+        : process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+      return new google.auth.GoogleAuth({
+        credentials,
+        scopes: [
+          "https://www.googleapis.com/auth/webmasters",
+          "https://www.googleapis.com/auth/indexing"
+        ],
+      });
+    }
+
+    if (fs.existsSync(KEY_PATH)) {
+      return new google.auth.GoogleAuth({
+        keyFile: KEY_PATH,
+        scopes: [
+          "https://www.googleapis.com/auth/webmasters",
+          "https://www.googleapis.com/auth/indexing"
+        ],
+      });
+    }
+
+    return null;
   } catch (error) {
     console.error("Failed to initialize Google GSC auth client:", error);
     return null;
@@ -28,17 +41,20 @@ const getAuthClient = () => {
 };
 
 /**
- * Check if credentials.json is configured
+ * Check if credentials.json or GOOGLE_SERVICE_ACCOUNT_JSON is configured
  * GET /api/admin/gsc/status
  */
 export const getGscStatus = (req, res) => {
-  const exists = fs.existsSync(KEY_PATH);
+  const hasEnv = !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  const hasFile = fs.existsSync(KEY_PATH);
+  const exists = hasEnv || hasFile;
   return res.status(200).json({
     success: true,
     configured: exists,
+    source: hasEnv ? "environment_variable" : (hasFile ? "credentials_file" : "none"),
     message: exists 
-      ? "Google GSC credentials.json is configured." 
-      : "Google GSC credentials.json is missing in backend directory."
+      ? "Google Search Console and Indexing API credentials are configured." 
+      : "Google GSC credentials are missing (neither credentials.json file nor GOOGLE_SERVICE_ACCOUNT_JSON found)."
   });
 };
 
