@@ -195,9 +195,27 @@ const approveVictoryRequest = asyncHandler(async (req, res) => {
     (c) => c.toLowerCase() === (petition.categories?.[0] || "").toLowerCase()
   ) || "Other";
 
-  // Create or update record in SuccessfulPetition collection
-  let successfulPetition = await SuccessfulPetition.findOne({ originalPetitionId: petition._id });
-  if (!successfulPetition) {
+  // Create or update record in SuccessfulPetition collection (check by ID or title)
+  let successfulPetition = await SuccessfulPetition.findOne({
+    $or: [
+      { originalPetitionId: petition._id },
+      { petitionTitle: petition.title },
+    ],
+  });
+
+  if (successfulPetition) {
+    successfulPetition.petitionTitle = petition.title || victoryRequest.petitionTitle;
+    successfulPetition.totalSignatures = Math.max(petition.numberOfSignatures || 0, victoryRequest.totalSignatures || 0, successfulPetition.totalSignatures || 1);
+    successfulPetition.decisionMakers = formattedDecisionMakers;
+    successfulPetition.issue = petition.petitionDetails?.problem || successfulPetition.issue;
+    successfulPetition.location = petition.country || successfulPetition.location;
+    successfulPetition.petitionStarterName = petition.petitionStarter?.name || successfulPetition.petitionStarterName;
+    successfulPetition.image = petition.petitionDetails?.image || (petition.petitionDetails?.images?.[0] || successfulPetition.image);
+    successfulPetition.outcome = outcome || victoryRequest.outcome || successfulPetition.outcome;
+    successfulPetition.category = matchedCategory;
+    successfulPetition.originalPetitionId = petition._id;
+    await successfulPetition.save();
+  } else {
     successfulPetition = await SuccessfulPetition.create({
       petitionTitle: petition.title || victoryRequest.petitionTitle,
       totalSignatures: Math.max(petition.numberOfSignatures || 0, victoryRequest.totalSignatures || 0, 1),

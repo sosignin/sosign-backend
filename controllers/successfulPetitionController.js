@@ -57,7 +57,37 @@ const createSuccessfulPetition = asyncHandler(async (req, res) => {
     }
   }
 
-  const successfulPetition = await SuccessfulPetition.create({
+  // Prevent duplicates: find existing by originalPetitionId or exact title
+  let successfulPetition = null;
+  if (originalPetitionId) {
+    successfulPetition = await SuccessfulPetition.findOne({ originalPetitionId });
+  }
+  if (!successfulPetition && petitionTitle) {
+    successfulPetition = await SuccessfulPetition.findOne({ petitionTitle: petitionTitle.trim() });
+  }
+
+  if (successfulPetition) {
+    successfulPetition.petitionTitle = petitionTitle;
+    successfulPetition.totalSignatures = parseInt(totalSignatures);
+    successfulPetition.decisionMakers = decisionMakers;
+    successfulPetition.issue = issue;
+    successfulPetition.location = location;
+    successfulPetition.petitionStarterName = petitionStarterName;
+    successfulPetition.startedDate = new Date(startedDate);
+    if (image) successfulPetition.image = image;
+    if (originalPetitionId) successfulPetition.originalPetitionId = originalPetitionId;
+    if (outcome) successfulPetition.outcome = outcome;
+    if (category) successfulPetition.category = category;
+    await successfulPetition.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Successful petition updated successfully",
+      successfulPetition,
+    });
+  }
+
+  successfulPetition = await SuccessfulPetition.create({
     petitionTitle,
     totalSignatures: parseInt(totalSignatures),
     decisionMakers,

@@ -476,9 +476,11 @@ const getPetitions = asyncHandler(async (req, res) => {
     ];
   }
 
-  // Only fetch approved petitions that are not hidden
+  // Only fetch approved active petitions that are not hidden and not victorious
   query.approved = true;
   query.hidden = { $ne: true };
+  query.isVictory = { $ne: true };
+  query.status = { $ne: "victory" };
 
   // Build sort object
   let sortOption = { isFeaturedInBanner: -1, bannerOrder: 1, createdAt: -1 };
@@ -1105,6 +1107,12 @@ const signPetition = asyncHandler(async (req, res) => {
     throw new Error("Petition not found");
   }
 
+  // Prevent signing if petition has achieved victory
+  if (petition.isVictory || petition.status === "victory") {
+    res.status(400);
+    throw new Error("This petition has already achieved victory and is closed for new signatures.");
+  }
+
   // Check if the user is trying to sign their own petition
   if (
     petition.petitionStarter.user &&
@@ -1360,6 +1368,9 @@ const getPetitionsByCountry = asyncHandler(async (req, res) => {
     Petition.find({
       country: req.params.country,
       approved: true,
+      hidden: { $ne: true },
+      isVictory: { $ne: true },
+      status: { $ne: "victory" },
     })
       .select("-signatures")
       .populate("petitionStarter.user", "name email profilePicture")
@@ -1370,6 +1381,9 @@ const getPetitionsByCountry = asyncHandler(async (req, res) => {
     Petition.countDocuments({
       country: req.params.country,
       approved: true,
+      hidden: { $ne: true },
+      isVictory: { $ne: true },
+      status: { $ne: "victory" },
     }),
   ]);
 
@@ -1390,7 +1404,12 @@ const getPetitionsByCountry = asyncHandler(async (req, res) => {
 const getPopularPetitions = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
 
-  const petitions = await Petition.find({ approved: true })
+  const petitions = await Petition.find({
+    approved: true,
+    hidden: { $ne: true },
+    isVictory: { $ne: true },
+    status: { $ne: "victory" },
+  })
     .select("-signatures")
     .populate("petitionStarter.user", "name email profilePicture")
     .sort({ numberOfSignatures: -1 })
