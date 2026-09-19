@@ -11,6 +11,13 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+# Secrets & Service Account Keys
+credentials.json
+*-credentials.json
+service-account*.json
+*.key
+*.pem
+
 # OS generated files
 .DS_Store
 .DS_Store?
