@@ -922,6 +922,228 @@ const renderGoogleWebLogin = (req, res) => {
   res.send(html);
 };
 
+// @desc    Export machine-readable personal data (DPDP Act, Section 11 - Right to Access)
+// @route   GET /api/users/export-my-data
+// @access  Private
+const exportUserData = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id).select("-password -passwordResetToken -passwordResetExpires");
+
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  // Fetch authored petitions
+  const authoredPetitions = await Petition.find({
+    "petitionStarter.user": user._id,
+  }).select("title slug status numberOfSignatures createdAt categories");
+
+  // Fetch signed petitions
+  const signedPetitions = await Petition.find({
+    "signatures.user": user._id,
+  }).select("title slug status signatures");
+
+  const formattedSignatures = signedPetitions.map((p) => {
+    const userSig = p.signatures?.find(
+      (s) => s.user && s.user.toString() === user._id.toString()
+    );
+    return {
+      petitionTitle: p.title,
+      petitionSlug: p.slug,
+      signedAt: userSig?.signedAt || null,
+      constituencyNumber: userSig?.constituencyNumber || null,
+    };
+  });
+
+  const exportPayload = {
+    metadata: {
+      platform: "SoSign Civic Platform",
+      dataFiduciary: "LEO MEO IT Solution",
+      statutoryRight: "Right to Access under Section 11, Digital Personal Data Protection Act, 2023",
+      generatedAt: new Date().toISOString(),
+      exportFormat: "JSON Machine-Readable Personal Data Archive",
+    },
+    userProfile: {
+      userId: user._id,
+      uniqueCode: user.uniqueCode,
+      name: user.name,
+      email: user.email,
+      mobileNumber: user.mobileNumber || "Not Provided",
+      designation: user.designation || "",
+      bio: user.bio || "",
+      profilePicture: user.profilePicture || "",
+      socialLinks: user.socialLinks || {},
+      accountCreated: user.createdAt,
+      lastUpdated: user.updatedAt,
+    },
+    kycStatus: {
+      aadhaarKyc: {
+        status: user.aadhaarKyc?.status || "not_verified",
+        maskedAadhaar: user.aadhaarKyc?.maskedAadhaar || "",
+        verifiedName: user.aadhaarKyc?.name || "",
+        district: user.aadhaarKyc?.district || "",
+        state: user.aadhaarKyc?.state || "",
+        verifiedAt: user.aadhaarKyc?.verifiedAt || null,
+        verificationMethod: user.aadhaarKyc?.verificationMethod || "None",
+      },
+      panKyc: {
+        status: user.panKyc?.status || "not_verified",
+        registeredName: user.panKyc?.registeredName || "",
+        panType: user.panKyc?.panType || "",
+        verifiedAt: user.panKyc?.verifiedAt || null,
+      },
+      voterKyc: {
+        status: user.voterKyc?.status || "not_verified",
+        registeredName: user.voterKyc?.registeredName || "",
+        area: user.voterKyc?.area || "",
+        district: user.voterKyc?.district || "",
+        verifiedAt: user.voterKyc?.verifiedAt || null,
+      },
+    },
+    consentAndPrivacy: {
+      acceptedPolicyVersion: user.consentRecords?.acceptedPrivacyPolicyVersion || "2026.1-DPDP",
+      acceptedAt: user.consentRecords?.acceptedAt || user.createdAt,
+      marketingConsent: user.consentRecords?.marketingConsent ?? true,
+      analyticsConsent: user.consentRecords?.analyticsConsent ?? true,
+      consentHistory: user.consentRecords?.consentHistory || [],
+    },
+    advocacyRecords: {
+      authoredPetitionsCount: authoredPetitions.length,
+      authoredPetitions,
+      signedPetitionsCount: formattedSignatures.length,
+      signedPetitions: formattedSignatures,
+    },
+  };
+
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="sosign-personal-data-${user._id}.json"`
+  );
+  res.setHeader("Content-Type", "application/json");
+  res.status(200).json(exportPayload);
+});
+
+// @desc    Permanently delete account & erase personal data (DPDP Act, Section 12 - Right to Erasure)
+// @route   DELETE /api/users/delete-account
+// @access  Private
+const deleteUserAccount = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  // If password is provided, optionally verify it for non-Google accounts
+  const { confirmationPassword } = req.body || {};
+  if (user.password && confirmationPassword) {
+    const isMatch = await user.matchPassword(confirmationPassword);
+    if (!isMatch) {
+      res.status(401);
+      throw new Error("Incorrect confirmation password");
+    }
+  }
+
+  const userId = user._id;
+
+  // 1. Unlink personal identity from petition signatures so aggregate civic vote counts remain accurate
+  // but citizen personal data is permanently unlinked
+  await Petition.updateMany(
+    { "signatures.user": userId },
+    {
+      $set: {
+        "signatures.$[elem].user": null,
+        "signatures.$[elem].aadharNumber": undefined,
+      },
+    },
+    {
+      arrayFilters: [{ "elem.user": userId }],
+    }
+  );
+
+  // 2. Remove user from social followers/following arrays
+  await User.updateMany({ followers: userId }, { $pull: { followers: userId } });
+  await User.updateMany({ following: userId }, { $pull: { following: userId } });
+
+  // 3. Delete user wallet if exists
+  await Wallet.deleteOne({ user: userId });
+
+  // 4. Delete notifications
+  await Notification.deleteMany({ user: userId });
+
+  // 5. Delete user record permanently
+  await User.findByIdAndDelete(userId);
+
+  // 6. Clear session cookie
+  res.cookie("jwt", "", {
+    httpOnly: true,
+    expires: new Date(0),
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Your account and personal data have been permanently erased in compliance with the Digital Personal Data Protection Act, 2023.",
+  });
+});
+
+// @desc    Update consent preferences (DPDP Act, Section 6)
+// @route   POST /api/users/consent
+// @access  Private
+const updateConsentPreferences = asyncHandler(async (req, res) => {
+  const { marketingConsent, analyticsConsent, policyVersion } = req.body;
+  const user = await User.findById(req.user._id);
+
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  if (!user.consentRecords) {
+    user.consentRecords = {
+      acceptedPrivacyPolicyVersion: "2026.1-DPDP",
+      acceptedAt: new Date(),
+      marketingConsent: true,
+      analyticsConsent: true,
+      consentHistory: [],
+    };
+  }
+
+  const clientIp = req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "";
+
+  if (marketingConsent !== undefined) {
+    user.consentRecords.marketingConsent = Boolean(marketingConsent);
+    user.consentRecords.consentHistory.push({
+      purpose: "marketing_communications",
+      granted: Boolean(marketingConsent),
+      timestamp: new Date(),
+      ipAddress: String(clientIp).split(",")[0].trim(),
+    });
+  }
+
+  if (analyticsConsent !== undefined) {
+    user.consentRecords.analyticsConsent = Boolean(analyticsConsent);
+    user.consentRecords.consentHistory.push({
+      purpose: "analytics_cookies",
+      granted: Boolean(analyticsConsent),
+      timestamp: new Date(),
+      ipAddress: String(clientIp).split(",")[0].trim(),
+    });
+  }
+
+  if (policyVersion) {
+    user.consentRecords.acceptedPrivacyPolicyVersion = policyVersion;
+    user.consentRecords.acceptedAt = new Date();
+  }
+
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Consent preferences updated successfully.",
+    consentRecords: user.consentRecords,
+  });
+});
+
 export {
   authUser,
   registerUser,
@@ -936,4 +1158,7 @@ export {
   getUserByCode,
   getUserPublicProfile,
   followUser,
+  exportUserData,
+  deleteUserAccount,
+  updateConsentPreferences,
 };

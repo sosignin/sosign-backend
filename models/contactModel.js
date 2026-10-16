@@ -25,8 +25,48 @@ const contactSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["unread", "read", "replied", "archived"],
+      enum: ["unread", "read", "replied", "archived", "resolved"],
       default: "unread",
+    },
+    category: {
+      type: String,
+      enum: [
+        "general",
+        "privacy_grievance",
+        "data_access",
+        "data_erasure",
+        "data_correction",
+        "consent_withdrawal",
+      ],
+      default: "general",
+      index: true,
+    },
+    ticketId: {
+      type: String,
+      unique: true,
+      sparse: true,
+      index: true,
+    },
+    adminResponse: {
+      type: String,
+      default: "",
+    },
+    resolvedAt: {
+      type: Date,
+      default: null,
+    },
+    isEscalated: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    escalatedAt: {
+      type: Date,
+      default: null,
+    },
+    escalationReason: {
+      type: String,
+      default: "",
     },
   },
   {

@@ -152,6 +152,21 @@ const userSchema = mongoose.Schema(
       type: Number,
       default: 4,
     },
+    // DPDP Act 2023 Consent & Data Protection tracking
+    consentRecords: {
+      acceptedPrivacyPolicyVersion: { type: String, default: "2026.1-DPDP" },
+      acceptedAt: { type: Date, default: Date.now },
+      marketingConsent: { type: Boolean, default: true },
+      analyticsConsent: { type: Boolean, default: true },
+      consentHistory: [
+        {
+          purpose: { type: String },
+          granted: { type: Boolean },
+          timestamp: { type: Date, default: Date.now },
+          ipAddress: { type: String, default: "" },
+        },
+      ],
+    },
   },
   {
     timestamps: true,

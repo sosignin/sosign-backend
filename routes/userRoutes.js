@@ -13,6 +13,9 @@ import {
   forgotPassword,
   resetPassword,
   changePassword,
+  exportUserData,
+  deleteUserAccount,
+  updateConsentPreferences,
 } from "../controllers/userController.js";
 import { protect, getOptionalUser } from "../middleware/authMiddleware.js";
 import profileUpload from "../middleware/profileUpload.js";
@@ -36,5 +39,11 @@ router.post("/reset-password", resetPassword);
 router.route("/change-password")
   .put(protect, changePassword)
   .post(protect, changePassword);
+
+// DPDP Act 2023 Citizen Rights Endpoints
+router.get("/export-my-data", protect, exportUserData);
+router.delete("/delete-account", protect, deleteUserAccount);
+router.post("/delete-account", protect, deleteUserAccount);
+router.post("/consent", protect, updateConsentPreferences);
 
 export default router;
