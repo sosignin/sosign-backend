@@ -6,6 +6,7 @@ import User from "../models/userModel.js";
 import Wallet from "../models/walletModel.js";
 import SuccessfulPetition from "../models/successfulPetitionModel.js";
 import ConsentLog from "../models/consentLogModel.js";
+import { getCleanIp } from "../utils/ipHelper.js";
 import cloudinary from "../config/cloudinary.js";
 import { sendPetitionNotificationEmails } from "../config/emailConfig.js";
 import createAdminNotification from "../utils/adminNotifier.js";
@@ -1346,8 +1347,7 @@ const signPetition = asyncHandler(async (req, res) => {
 
   // DPDP Act Sec 6(10) Statutory Consent Proof Logging
   try {
-    const rawIp = req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "";
-    const ipAddress = String(rawIp).split(",")[0].trim();
+    const ipAddress = getCleanIp(req);
     const userAgent = req.headers["user-agent"] || "";
     await ConsentLog.create({
       user: req.user._id,
@@ -1761,11 +1761,7 @@ const recordPetitionView = asyncHandler(async (req, res) => {
     throw new Error("Petition not found");
   }
 
-  const ip =
-    req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
-    req.socket?.remoteAddress ||
-    req.ip ||
-    "127.0.0.1";
+  const ip = getCleanIp(req);
   const userAgent = req.headers["user-agent"] || "";
   const userId = req.user?._id;
 

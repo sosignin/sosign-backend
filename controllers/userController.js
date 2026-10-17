@@ -6,6 +6,7 @@ import Petition from "../models/petitionModel.js";
 import Notification from "../models/notificationModel.js";
 import fetch from "node-fetch";
 import ConsentLog from "../models/consentLogModel.js";
+import { getCleanIp } from "../utils/ipHelper.js";
 
 // @desc    Auth user & get token
 // @route   POST /api/users/login
@@ -110,8 +111,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
     // DPDP Act Sec 6(10) Statutory Consent Proof Logging
     try {
-      const rawIp = req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "";
-      const ipAddress = String(rawIp).split(",")[0].trim();
+      const ipAddress = getCleanIp(req);
       const userAgent = req.headers["user-agent"] || "";
       await ConsentLog.create({
         user: user._id,
@@ -1135,7 +1135,7 @@ const updateConsentPreferences = asyncHandler(async (req, res) => {
     };
   }
 
-  const clientIp = req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "";
+  const clientIp = getCleanIp(req);
 
   if (marketingConsent !== undefined) {
     user.consentRecords.marketingConsent = Boolean(marketingConsent);

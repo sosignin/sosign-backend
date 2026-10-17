@@ -1,18 +1,13 @@
 import Visitor from "../models/visitorModel.js";
 import Traffic from "../models/trafficModel.js";
+import { getCleanIp } from "../utils/ipHelper.js";
 
 // @desc    Track site visit / pageview
 // @route   POST /api/traffic/visit
 // @access  Public
 export const recordVisit = async (req, res) => {
   try {
-    const rawIp =
-      req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
-      req.socket?.remoteAddress ||
-      req.ip ||
-      "127.0.0.1";
-
-    const ip = rawIp.replace(/^.*:/, ""); // clean IPv6 prefix if present
+    const ip = getCleanIp(req);
     const path = req.body?.path || "/";
     const userAgent = req.headers["user-agent"] || "";
 

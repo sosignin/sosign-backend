@@ -44,16 +44,20 @@ import contactRoutes from "./routes/contactRoutes.js";
 import adminNotificationRoutes from "./routes/adminNotificationRoutes.js";
 import deletionRequestRoutes from "./routes/deletionRequestRoutes.js";
 import consentRoutes from "./routes/consentRoutes.js";
+import accessLogRoutes from "./routes/accessLogRoutes.js";
+import backupRoutes from "./routes/backupRoutes.js";
 
 
 // Middleware
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
+import { accessLogMiddleware } from "./middleware/accessLogMiddleware.js";
 
 // Models (for seeding)
 import Category from "./models/categoryModel.js";
 import Plan from "./models/planModel.js";
 import Faq from "./models/faqModel.js";
 import { initAutoSignScheduler } from "./utils/autoSignScheduler.js";
+import { initBackupScheduler } from "./services/backupService.js";
 
 // Load environment variables
 dotenv.config();
@@ -84,6 +88,13 @@ connectDB().then(async () => {
     initAutoSignScheduler();
   } catch (error) {
     console.error("Error initializing auto-sign scheduler:", error.message);
+  }
+
+  // Initialize automated DPDP daily backup scheduler (Sec 8(5))
+  try {
+    initBackupScheduler();
+  } catch (error) {
+    console.error("Error initializing backup scheduler:", error.message);
   }
 });
 
@@ -236,6 +247,9 @@ app.use((req, res, next) => {
 // Cookie parser middleware
 app.use(cookieParser());
 
+// DPDP Act & CERT-In Access Logging Middleware (Section 8(5))
+app.use(accessLogMiddleware);
+
 // Health check endpoint
 app.get("/health", (req, res) => {
   res.status(200).json({
@@ -279,6 +293,8 @@ app.use("/api/traffic", trafficRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/deletion-requests", deletionRequestRoutes);
 app.use("/api/consent", consentRoutes);
+app.use("/api/admin/access-logs", accessLogRoutes);
+app.use("/api/admin/backups", backupRoutes);
 
 
 // Root endpoint

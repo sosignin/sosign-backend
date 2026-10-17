@@ -1,6 +1,7 @@
 import asyncHandler from "express-async-handler";
 import ConsentLog from "../models/consentLogModel.js";
 import User from "../models/userModel.js";
+import { getCleanIp } from "../utils/ipHelper.js";
 
 // @desc    Record proof/log of consent (DPDP Act Sec 6(10))
 // @route   POST /api/consent/log
@@ -18,8 +19,7 @@ export const recordConsentLog = asyncHandler(async (req, res) => {
     userEmail,
   } = req.body;
 
-  const rawIp = req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "";
-  const ipAddress = String(rawIp).split(",")[0].trim();
+  const ipAddress = getCleanIp(req);
   const userAgent = req.headers["user-agent"] || "";
 
   let userId = null;
@@ -103,8 +103,7 @@ export const withdrawConsent = asyncHandler(async (req, res) => {
     throw new Error("User not found");
   }
 
-  const rawIp = req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "";
-  const ipAddress = String(rawIp).split(",")[0].trim();
+  const ipAddress = getCleanIp(req);
   const userAgent = req.headers["user-agent"] || "";
 
   // Log the withdrawal event as proof
