@@ -20,6 +20,7 @@ const adminNotificationSchema = new mongoose.Schema(
         "wallet_request",       // Wallet Requests (/dashboard/wallet-requests)
         "crowdfunding_approval",// Crowdfunding Approval (/dashboard/crowdfunding)
         "withdrawal_request",   // Withdrawal Requests (/dashboard/withdrawals)
+        "deletion_request",     // Account & Data Deletion Requests (/dashboard/deletion-requests)
         "system",               // System / General alerts
       ],
       index: true,

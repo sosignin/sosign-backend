@@ -42,6 +42,8 @@ import petitionReportRoutes from "./routes/petitionReportRoutes.js";
 import trafficRoutes from "./routes/trafficRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
 import adminNotificationRoutes from "./routes/adminNotificationRoutes.js";
+import deletionRequestRoutes from "./routes/deletionRequestRoutes.js";
+import consentRoutes from "./routes/consentRoutes.js";
 
 
 // Middleware
@@ -275,6 +277,8 @@ app.use("/api/newsletters", newsletterRoutes);
 app.use("/api/reports", petitionReportRoutes);
 app.use("/api/traffic", trafficRoutes);
 app.use("/api/contact", contactRoutes);
+app.use("/api/deletion-requests", deletionRequestRoutes);
+app.use("/api/consent", consentRoutes);
 
 
 // Root endpoint

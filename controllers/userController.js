@@ -5,6 +5,7 @@ import Wallet from "../models/walletModel.js";
 import Petition from "../models/petitionModel.js";
 import Notification from "../models/notificationModel.js";
 import fetch from "node-fetch";
+import ConsentLog from "../models/consentLogModel.js";
 
 // @desc    Auth user & get token
 // @route   POST /api/users/login
@@ -106,6 +107,32 @@ const registerUser = asyncHandler(async (req, res) => {
 
   if (user) {
     await Wallet.getOrCreateWallet(user._id);
+
+    // DPDP Act Sec 6(10) Statutory Consent Proof Logging
+    try {
+      const rawIp = req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "";
+      const ipAddress = String(rawIp).split(",")[0].trim();
+      const userAgent = req.headers["user-agent"] || "";
+      await ConsentLog.create({
+        user: user._id,
+        userName: user.name,
+        userEmail: user.email,
+        ipAddress,
+        userAgent,
+        consentType: "registration",
+        purpose: "Citizen account registration and identity verification under DPDP Act 2023",
+        noticeVersion: "2026.1-DPDP",
+        noticeLanguage: req.body.noticeLanguage || "en",
+        granted: true,
+        method: "affirmative_checkbox",
+        metadata: {
+          designation: user.designation,
+          mobileNumber: user.mobileNumber,
+        },
+      });
+    } catch (consentErr) {
+      console.error("Failed to log registration consent:", consentErr);
+    }
     const token = generateToken(res, user._id);
 
     res.status(201).json({

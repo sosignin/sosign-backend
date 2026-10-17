@@ -5,6 +5,7 @@ import PetitionView from "../models/petitionViewModel.js";
 import User from "../models/userModel.js";
 import Wallet from "../models/walletModel.js";
 import SuccessfulPetition from "../models/successfulPetitionModel.js";
+import ConsentLog from "../models/consentLogModel.js";
 import cloudinary from "../config/cloudinary.js";
 import { sendPetitionNotificationEmails } from "../config/emailConfig.js";
 import createAdminNotification from "../utils/adminNotifier.js";
@@ -1342,6 +1343,33 @@ const signPetition = asyncHandler(async (req, res) => {
     );
   }
   await petition.save();
+
+  // DPDP Act Sec 6(10) Statutory Consent Proof Logging
+  try {
+    const rawIp = req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "";
+    const ipAddress = String(rawIp).split(",")[0].trim();
+    const userAgent = req.headers["user-agent"] || "";
+    await ConsentLog.create({
+      user: req.user._id,
+      userName: req.user.name,
+      userEmail: req.user.email,
+      ipAddress,
+      userAgent,
+      consentType: "petition_signature",
+      purpose: `Voluntary affirmative consent to record digital signature and support petition: "${petition.title}" under DPDP Act 2023`,
+      noticeVersion: "2026.1-DPDP",
+      noticeLanguage: req.body.noticeLanguage || "en",
+      granted: true,
+      method: "affirmative_checkbox",
+      metadata: {
+        petitionId: petition._id,
+        petitionTitle: petition.title,
+        constituencyNumber: constituencyNumber || undefined,
+      },
+    });
+  } catch (consentErr) {
+    console.error("Failed to log petition signature consent:", consentErr);
+  }
 
   // Trigger static regeneration on-demand to refresh signature stats
   triggerRevalidation(`/currentpetitions/${petition.slug}`);

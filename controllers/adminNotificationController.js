@@ -13,6 +13,7 @@ import Contact from "../models/contactModel.js";
 import WalletRequest from "../models/walletRequestModel.js";
 import Crowdfunding from "../models/crowdfundingModel.js";
 import Withdrawal from "../models/withdrawalModel.js";
+import DeletionRequest from "../models/deletionRequestModel.js";
 
 // @desc    Get paginated admin notifications
 // @route   GET /api/admin/notifications
@@ -85,6 +86,7 @@ export const getAdminNotificationCounts = asyncHandler(async (req, res) => {
     walletRequestsCount,
     crowdfundingCount,
     withdrawalsCount,
+    deletionRequestsCount,
     unreadNotifCount,
     latestNotifications,
   ] = await Promise.all([
@@ -143,6 +145,9 @@ export const getAdminNotificationCounts = asyncHandler(async (req, res) => {
     // 14. Withdrawal Requests (pending campaign funds withdrawals)
     Withdrawal.countDocuments({ status: "pending" }).catch(() => 0),
 
+    // 15. Deletion Requests (pending user account & data deletion requests)
+    DeletionRequest.countDocuments({ status: "pending" }).catch(() => 0),
+
     // Stored unread admin notifications count
     AdminNotification.countDocuments({ isRead: false }).catch(() => 0),
 
@@ -169,6 +174,7 @@ export const getAdminNotificationCounts = asyncHandler(async (req, res) => {
     walletRequests: walletRequestsCount,
     crowdfunding: crowdfundingCount,
     withdrawals: withdrawalsCount,
+    deletionRequests: deletionRequestsCount,
   };
 
   const totalPendingAction = Object.values(badges).reduce((acc, count) => acc + count, 0);

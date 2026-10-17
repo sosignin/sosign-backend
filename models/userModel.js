@@ -156,14 +156,18 @@ const userSchema = mongoose.Schema(
     consentRecords: {
       acceptedPrivacyPolicyVersion: { type: String, default: "2026.1-DPDP" },
       acceptedAt: { type: Date, default: Date.now },
-      marketingConsent: { type: Boolean, default: true },
-      analyticsConsent: { type: Boolean, default: true },
+      noticeLanguage: { type: String, default: "en" }, // Eighth Schedule language used
+      consentMethod: { type: String, default: "affirmative_checkbox" },
+      marketingConsent: { type: Boolean, default: false }, // Must not be pre-ticked
+      analyticsConsent: { type: Boolean, default: false }, // Must not be pre-ticked
       consentHistory: [
         {
           purpose: { type: String },
           granted: { type: Boolean },
           timestamp: { type: Date, default: Date.now },
           ipAddress: { type: String, default: "" },
+          userAgent: { type: String, default: "" },
+          language: { type: String, default: "en" },
         },
       ],
     },
