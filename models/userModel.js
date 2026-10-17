@@ -90,6 +90,49 @@ const userSchema = mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // DPDP Act 2023 Rapid Harm Containment
+    tokenInvalidBefore: {
+      type: Date,
+      default: null,
+    },
+    mustResetPassword: {
+      type: Boolean,
+      default: false,
+    },
+    securityAlertMessage: {
+      type: String,
+      default: "",
+    },
+    // DPDP Act 2023 Section 9 - Child Data Protection & Verifiable Parental Consent (VPC)
+    isMinor: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    dateOfBirth: {
+      type: Date,
+      default: null,
+    },
+    parentalConsent: {
+      status: {
+        type: String,
+        enum: ["not_required", "pending", "verified", "rejected"],
+        default: "not_required",
+        index: true,
+      },
+      guardianName: { type: String, default: "" },
+      guardianEmail: { type: String, default: "" },
+      guardianPhone: { type: String, default: "" },
+      relationship: { type: String, default: "" },
+      verifiedAt: { type: Date, default: null },
+      verificationMethod: { type: String, default: "" },
+      consentProofToken: { type: String, default: "" },
+      notes: { type: String, default: "" },
+    },
+    childTrackingBypassed: {
+      type: Boolean,
+      default: false,
+    },
     // Aadhaar KYC verification via DigiLocker / OCR / OTP
     aadhaarKyc: {
       status: {

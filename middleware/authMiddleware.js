@@ -75,6 +75,16 @@ const protect = asyncHandler(async (req, res, next) => {
     throw new Error("Your account has been suspended. Please contact support.");
   }
 
+  // DPDP Rapid Harm Containment: Terminate sessions issued before breach mitigation timestamp
+  if (
+    req.user.tokenInvalidBefore &&
+    decodedToken.iat &&
+    decodedToken.iat * 1000 < new Date(req.user.tokenInvalidBefore).getTime()
+  ) {
+    res.status(401);
+    throw new Error("Session terminated for your security following a security containment action. Please sign in again.");
+  }
+
   next();
 });
 

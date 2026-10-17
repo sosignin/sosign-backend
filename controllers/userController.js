@@ -47,6 +47,8 @@ const authUser = asyncHandler(async (req, res) => {
       voterKyc: userWithPetitions.voterKyc || { status: "not_verified" },
       plan: userWithPetitions.plan || "free",
       freeChecksRemaining: userWithPetitions.freeChecksRemaining !== undefined ? userWithPetitions.freeChecksRemaining : 4,
+      isMinor: !!userWithPetitions.isMinor,
+      parentalConsent: userWithPetitions.parentalConsent || { status: "not_required" },
     });
   } else {
     res.status(401);
@@ -58,7 +60,19 @@ const authUser = asyncHandler(async (req, res) => {
 // @route   POST /api/users
 // @access  Public
 const registerUser = asyncHandler(async (req, res) => {
-  const { name, designation, email, mobileNumber, password } = req.body;
+  const {
+    name,
+    designation,
+    email,
+    mobileNumber,
+    password,
+    isMinor = false,
+    dateOfBirth = null,
+    guardianName = "",
+    guardianEmail = "",
+    guardianPhone = "",
+    relationship = "Parent/Guardian",
+  } = req.body;
   
   // Validate email with ValidEmail.net API
   try {
@@ -98,12 +112,25 @@ const registerUser = asyncHandler(async (req, res) => {
     }
   }
 
+  const userIsMinor = isMinor === true || isMinor === "true";
+  const parentalConsentStatus = userIsMinor ? "pending" : "not_required";
+
   const user = await User.create({
     name,
     designation,
     email,
     mobileNumber,
     password,
+    isMinor: userIsMinor,
+    dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+    childTrackingBypassed: userIsMinor,
+    parentalConsent: {
+      status: parentalConsentStatus,
+      guardianName: guardianName || "",
+      guardianEmail: guardianEmail || "",
+      guardianPhone: guardianPhone || "",
+      relationship: relationship || "Parent/Guardian",
+    },
   });
 
   if (user) {
@@ -153,6 +180,8 @@ const registerUser = asyncHandler(async (req, res) => {
       voterKyc: user.voterKyc || { status: "not_verified" },
       plan: user.plan || "free",
       freeChecksRemaining: user.freeChecksRemaining !== undefined ? user.freeChecksRemaining : 4,
+      isMinor: !!user.isMinor,
+      parentalConsent: user.parentalConsent || { status: "not_required" },
     });
   } else {
     res.status(400);
@@ -208,6 +237,8 @@ const getUserProfile = asyncHandler(async (req, res) => {
       voterKyc: userWithPetitions.voterKyc || { status: "not_verified" },
       plan: userWithPetitions.plan || "free",
       freeChecksRemaining: userWithPetitions.freeChecksRemaining !== undefined ? userWithPetitions.freeChecksRemaining : 4,
+      isMinor: !!userWithPetitions.isMinor,
+      parentalConsent: userWithPetitions.parentalConsent || { status: "not_required" },
     });
   } else {
     res.status(404);

@@ -46,6 +46,8 @@ import deletionRequestRoutes from "./routes/deletionRequestRoutes.js";
 import consentRoutes from "./routes/consentRoutes.js";
 import accessLogRoutes from "./routes/accessLogRoutes.js";
 import backupRoutes from "./routes/backupRoutes.js";
+import dataBreachRoutes from "./routes/dataBreachRoutes.js";
+import vendorComplianceRoutes from "./routes/vendorComplianceRoutes.js";
 
 
 // Middleware
@@ -56,6 +58,7 @@ import { accessLogMiddleware } from "./middleware/accessLogMiddleware.js";
 import Category from "./models/categoryModel.js";
 import Plan from "./models/planModel.js";
 import Faq from "./models/faqModel.js";
+import VendorCompliance from "./models/vendorComplianceModel.js";
 import { initAutoSignScheduler } from "./utils/autoSignScheduler.js";
 import { initBackupScheduler } from "./services/backupService.js";
 
@@ -81,6 +84,13 @@ connectDB().then(async () => {
     await Faq.seedDefaults();
   } catch (error) {
     console.error("Error seeding FAQs:", error.message);
+  }
+
+  // Seed default statutory DPDP vendors
+  try {
+    await VendorCompliance.seedDefaults();
+  } catch (error) {
+    console.error("Error seeding vendor compliance defaults:", error.message);
   }
 
   // Initialize auto-sign background scheduler
@@ -295,6 +305,8 @@ app.use("/api/deletion-requests", deletionRequestRoutes);
 app.use("/api/consent", consentRoutes);
 app.use("/api/admin/access-logs", accessLogRoutes);
 app.use("/api/admin/backups", backupRoutes);
+app.use("/api/admin/data-breaches", dataBreachRoutes);
+app.use("/api/admin/vendors", vendorComplianceRoutes);
 
 
 // Root endpoint

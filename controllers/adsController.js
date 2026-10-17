@@ -78,8 +78,11 @@ const getActiveAds = asyncHandler(async (req, res) => {
         return adObj;
     });
 
-    // Increment impressions
-    if (validAds.length > 0) {
+    // DPDP Act Section 9(3): Avoid tracking or targeted advertising directed at children
+    const isChildRequester = req.query.isMinor === "true" || req.user?.isMinor === true;
+
+    // Increment impressions only for adult/general traffic (never track children)
+    if (!isChildRequester && validAds.length > 0) {
         Ad.updateMany(
             { _id: { $in: validAds.map((ad) => ad._id) } },
             { $inc: { impressions: 1 } }
