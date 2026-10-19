@@ -66,6 +66,8 @@ const registerUser = asyncHandler(async (req, res) => {
     email,
     mobileNumber,
     password,
+    age,
+    isAdultConfirmed,
     isMinor = false,
     dateOfBirth = null,
     guardianName = "",
@@ -73,6 +75,15 @@ const registerUser = asyncHandler(async (req, res) => {
     guardianPhone = "",
     relationship = "Parent/Guardian",
   } = req.body;
+
+  // Strict age verification: Children are not allowed to use the website
+  if (age !== undefined && age !== null && age !== "") {
+    const parsedAge = Number(age);
+    if (!isNaN(parsedAge) && parsedAge < 18) {
+      res.status(400);
+      throw new Error("You must be at least 18 years old to use SoSign. Children are not permitted to use this website.");
+    }
+  }
   
   // Validate email with ValidEmail.net API
   try {
@@ -121,6 +132,8 @@ const registerUser = asyncHandler(async (req, res) => {
     email,
     mobileNumber,
     password,
+    age: age ? Number(age) : null,
+    isAdultConfirmed: isAdultConfirmed === true || isAdultConfirmed === "true",
     isMinor: userIsMinor,
     dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
     childTrackingBypassed: userIsMinor,
@@ -258,13 +271,26 @@ const updateUserProfile = asyncHandler(async (req, res) => {
   }
 
   // Update fields if provided
-  const { name, bio, designation, mobileNumber } = req.body;
+  const { name, bio, designation, mobileNumber, age, isAdultConfirmed } = req.body;
   let { socialLinks } = req.body;
 
   if (name !== undefined) user.name = name;
   if (bio !== undefined) user.bio = bio;
   if (designation !== undefined) user.designation = designation;
   if (mobileNumber !== undefined) user.mobileNumber = mobileNumber;
+
+  if (age !== undefined && age !== null && age !== "") {
+    const parsedAge = Number(age);
+    if (!isNaN(parsedAge) && parsedAge < 18) {
+      res.status(400);
+      throw new Error("You must be at least 18 years old to use SoSign. Children are not permitted to use this website.");
+    }
+    user.age = parsedAge;
+  }
+
+  if (isAdultConfirmed !== undefined) {
+    user.isAdultConfirmed = isAdultConfirmed === true || isAdultConfirmed === "true";
+  }
 
   // Handle social links update (parse from JSON string if needed - FormData sends as string)
   if (socialLinks !== undefined) {
@@ -298,6 +324,8 @@ const updateUserProfile = asyncHandler(async (req, res) => {
     designation: updatedUser.designation,
     email: updatedUser.email,
     mobileNumber: updatedUser.mobileNumber,
+    age: updatedUser.age,
+    isAdultConfirmed: updatedUser.isAdultConfirmed,
     bio: updatedUser.bio || "",
     profilePicture: updatedUser.profilePicture || "",
     aadhaarKyc: updatedUser.aadhaarKyc || { status: "not_verified" },

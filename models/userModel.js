@@ -103,7 +103,15 @@ const userSchema = mongoose.Schema(
       type: String,
       default: "",
     },
-    // DPDP Act 2023 Section 9 - Child Data Protection & Verifiable Parental Consent (VPC)
+    // DPDP Act 2023 Section 9 - Child Data Protection & Age Restriction (18+ only)
+    age: {
+      type: Number,
+      default: null,
+    },
+    isAdultConfirmed: {
+      type: Boolean,
+      default: false,
+    },
     isMinor: {
       type: Boolean,
       default: false,
