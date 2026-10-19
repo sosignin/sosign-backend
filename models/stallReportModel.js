@@ -75,12 +75,18 @@ const stallReportSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected"],
+      enum: ["pending", "approved", "rejected", "resolved"],
       default: "pending",
       index: true,
     },
     rejectionReason: {
       type: String,
+    },
+    resolutionNote: {
+      type: String,
+    },
+    resolvedAt: {
+      type: Date,
     },
     defenses: [
       {

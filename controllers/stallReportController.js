@@ -21,37 +21,235 @@ function calculateDistanceInMeters(lat1, lon1, lat2, lon2) {
 }
 
 // Initial seed data for Maharashtra Cities & Schools
+// Initial comprehensive seed data for all 36 Maharashtra Districts
 const INITIAL_MAHARASHTRA_SCHOOLS = [
+  // Mumbai
   { name: "Bombay Scottish School", city: "Mumbai", address: "Mahim, Mumbai", coordinates: [72.8398, 19.0345] },
   { name: "St. Xavier's High School", city: "Mumbai", address: "Fort, Mumbai", coordinates: [72.8335, 18.9438] },
   { name: "Dhirubhai Ambani International School", city: "Mumbai", address: "BKC, Mumbai", coordinates: [72.8682, 19.0652] },
   { name: "Cathedral & John Connon School", city: "Mumbai", address: "Fort, Mumbai", coordinates: [72.8322, 18.9378] },
   { name: "Don Bosco High School", city: "Mumbai", address: "Matunga, Mumbai", coordinates: [72.8546, 19.0267] },
+  { name: "Campion School", city: "Mumbai", address: "Cooperage, Mumbai", coordinates: [72.8272, 18.9272] },
 
+  // Mumbai Suburban
+  { name: "Podar International School, Santacruz", city: "Mumbai Suburban", address: "Santacruz West, Mumbai", coordinates: [72.8385, 19.0822] },
+  { name: "Ryan International School", city: "Mumbai Suburban", address: "Malad East, Mumbai", coordinates: [72.8485, 19.1865] },
+  { name: "Oberoi International School", city: "Mumbai Suburban", address: "Goregaon East, Mumbai", coordinates: [72.8689, 19.1725] },
+  { name: "Billabong High International School", city: "Mumbai Suburban", address: "Juhu, Mumbai", coordinates: [72.8285, 19.1098] },
+
+  // Pune
   { name: "Loyola High School", city: "Pune", address: "Pashan, Pune", coordinates: [73.8188, 18.5392] },
   { name: "St. Vincent's High School", city: "Pune", address: "Camp, Pune", coordinates: [73.8765, 18.5134] },
   { name: "The Bishop's School", city: "Pune", address: "Camp, Pune", coordinates: [73.8741, 18.5121] },
   { name: "Fergusson Junior College & School", city: "Pune", address: "FC Road, Pune", coordinates: [73.8398, 18.5228] },
+  { name: "Delhi Public School, Pune", city: "Pune", address: "Mohammed Wadi, Pune", coordinates: [73.9185, 18.4725] },
+  { name: "Symbiosis International School", city: "Pune", address: "Viman Nagar, Pune", coordinates: [73.9142, 18.5678] },
+  { name: "St. Mary's School", city: "Pune", address: "Camp, Pune", coordinates: [73.8821, 18.5085] },
 
+  // Thane
   { name: "Smt. Sulochanadevi Singhania School", city: "Thane", address: "Jekegram, Thane West", coordinates: [72.9642, 19.2065] },
   { name: "Hiranandani Foundation School", city: "Thane", address: "Ghodbunder Road, Thane", coordinates: [72.9781, 19.2482] },
+  { name: "DAV Public School", city: "Thane", address: "Thane West", coordinates: [72.9812, 19.2145] },
+  { name: "Vasant Vihar High School", city: "Thane", address: "Vasant Vihar, Thane West", coordinates: [72.9698, 19.2215] },
 
-  { name: "Centre Point School", city: "Nagpur", address: "Wardhaman Nagar, Nagpur", coordinates: [79.1198, 21.1492] },
-  { name: "St. John's High School", city: "Nagpur", address: "Mohan Nagar, Nagpur", coordinates: [79.0834, 21.1612] },
+  // Navi Mumbai
+  { name: "Delhi Public School, Nerul", city: "Navi Mumbai", address: "Nerul, Navi Mumbai", coordinates: [73.0185, 19.0345] },
+  { name: "Father Agnel Multipurpose School", city: "Navi Mumbai", address: "Vashi, Navi Mumbai", coordinates: [72.9985, 19.0765] },
+  { name: "Apeejay School", city: "Navi Mumbai", address: "Nerul, Navi Mumbai", coordinates: [73.0152, 19.0412] },
+  { name: "Ryan International School, Sanpada", city: "Navi Mumbai", address: "Sanpada, Navi Mumbai", coordinates: [73.0112, 19.0625] },
 
+  // Palghar
+  { name: "St. John International School", city: "Palghar", address: "Palghar Manor Road, Palghar", coordinates: [72.7745, 19.7025] },
+  { name: "Sacred Heart High School", city: "Palghar", address: "Vevoor, Palghar", coordinates: [72.7812, 19.6985] },
+  { name: "Tarapur Vidya Mandir", city: "Palghar", address: "Boisar, Palghar", coordinates: [72.7562, 19.8012] },
+
+  // Vasai / Vasai-Virar
+  { name: "Holy Family Convent High School", city: "Vasai", address: "Vasai West", coordinates: [72.8285, 19.3825] },
+  { name: "Carmel Convent English High School", city: "Vasai", address: "Sandor, Vasai", coordinates: [72.8145, 19.3765] },
+  { name: "St. Aloysius High School", city: "Vasai-Virar", address: "Nallasopara West", coordinates: [72.8195, 19.4125] },
+
+  // Raigad
+  { name: "St. Wilfred's High School", city: "Raigad", address: "Panvel, Raigad", coordinates: [73.1125, 18.9925] },
+  { name: "DAV Public School, New Panvel", city: "Raigad", address: "New Panvel, Raigad", coordinates: [73.1245, 18.9985] },
+  { name: "Shantiniketan Public School", city: "Raigad", address: "Alibag, Raigad", coordinates: [72.8715, 18.6412] },
+
+  // Ratnagiri
+  { name: "Phatak High School", city: "Ratnagiri", address: "Ratnagiri City", coordinates: [73.3012, 16.9925] },
+  { name: "M.S. Naik High School", city: "Ratnagiri", address: "Patwardhan Wadi, Ratnagiri", coordinates: [73.3125, 16.9845] },
+  { name: "Sacred Heart Convent High School", city: "Ratnagiri", address: "Ratnagiri", coordinates: [73.3085, 17.0012] },
+
+  // Sindhudurg
+  { name: "Topiwala National High School", city: "Sindhudurg", address: "Sawantwadi, Sindhudurg", coordinates: [73.7512, 15.9085] },
+  { name: "Shivaji High School", city: "Sindhudurg", address: "Kudal, Sindhudurg", coordinates: [73.6895, 16.0125] },
+  { name: "Rani Parvati Devi High School", city: "Sindhudurg", address: "Sawantwadi", coordinates: [73.7485, 15.9025] },
+
+  // Satara
+  { name: "Podar International School, Satara (CBSE)", city: "Satara", address: "Old MIDC, Satara", coordinates: [73.9940, 17.7064] },
+  { name: "Sainik School, Satara", city: "Satara", address: "Sadar Bazar, Satara", coordinates: [74.0125, 17.6895] },
+  { name: "Chhatrapati Shahu Academy", city: "Satara", address: "Khadgaon Road, Satara", coordinates: [74.0085, 17.6945] },
+  { name: "Kanya Shala, Satara", city: "Satara", address: "Bhavani Peth, Satara", coordinates: [74.0185, 17.6812] },
+
+  // Sangli
+  { name: "City High School", city: "Sangli", address: "Gaon Bhag, Sangli", coordinates: [74.5712, 16.8545] },
+  { name: "Appasaheb Birnale Public School", city: "Sangli", address: "South Shivaji Nagar, Sangli", coordinates: [74.5895, 16.8625] },
+  { name: "Alpha English Medium School", city: "Sangli", address: "Miraj Road, Sangli", coordinates: [74.5645, 16.8485] },
+
+  // Kolhapur
+  { name: "Chhatrapati Shahu Vidyalaya", city: "Kolhapur", address: "New Palace, Kolhapur", coordinates: [74.2312, 16.7145] },
+  { name: "St. Xavier's High School", city: "Kolhapur", address: "Nagala Park, Kolhapur", coordinates: [74.2285, 16.7012] },
+  { name: "Private High School", city: "Kolhapur", address: "Mangalwar Peth, Kolhapur", coordinates: [74.2385, 16.6945] },
+  { name: "Rajaram High School", city: "Kolhapur", address: "Kasaba Bawada, Kolhapur", coordinates: [74.2485, 16.7085] },
+
+  // Solapur
+  { name: "Jain International School", city: "Solapur", address: "NH-9, Solapur", coordinates: [75.9064, 17.6599] },
+  { name: "Haribhai Deokaran High School", city: "Solapur", address: "Murarji Peth, Solapur", coordinates: [75.9125, 17.6685] },
+  { name: "Siddheshwar English Medium School", city: "Solapur", address: "Solapur City", coordinates: [75.9215, 17.6745] },
+  { name: "Kuchan High School", city: "Solapur", address: "Raviwar Peth, Solapur", coordinates: [75.8985, 17.6512] },
+
+  // Nashik
   { name: "Barnes School & Junior College", city: "Nashik", address: "Devlali, Nashik", coordinates: [73.8321, 19.9543] },
   { name: "K.K. Wagh Universal School", city: "Nashik", address: "Panchavati, Nashik", coordinates: [73.8156, 20.0123] },
+  { name: "Karmaveer Bhaurao Patil Vidyalaya", city: "Nashik", address: "Nashik", coordinates: [73.7912, 19.9885] },
+  { name: "Fravashi Academy", city: "Nashik", address: "Sharanpur Road, Nashik", coordinates: [73.7745, 19.9985] },
+  { name: "Wisdom High International School", city: "Nashik", address: "Rameshwar Nagar, Nashik", coordinates: [73.7612, 20.0215] },
 
+  // Dhule
+  { name: "Jai Hind High School", city: "Dhule", address: "Deopur, Dhule", coordinates: [74.7785, 20.9012] },
+  { name: "Canossa Convent High School", city: "Dhule", address: "Dhule City", coordinates: [74.7812, 20.9085] },
+  { name: "Podar International School, Dhule", city: "Dhule", address: "Wadbhokhar Road, Dhule", coordinates: [74.7645, 20.8945] },
+
+  // Jalgaon
+  { name: "Anglo Urdu High School", city: "Jalgaon", address: "Polan Peth, Jalgaon", coordinates: [75.5685, 21.0085] },
+  { name: "K.R. Kotkar High School", city: "Jalgaon", address: "Navi Peth, Jalgaon", coordinates: [75.5595, 21.0125] },
+  { name: "St. Aloysius High School", city: "Jalgaon", address: "Jalgaon City", coordinates: [75.5712, 20.9985] },
+
+  // Nandurbar
+  { name: "D.G. Tatkare High School", city: "Nandurbar", address: "Nandurbar City", coordinates: [74.2412, 21.3712] },
+  { name: "Eklavya Residential School", city: "Nandurbar", address: "Nandurbar", coordinates: [74.2285, 21.3645] },
+  { name: "SA Mission High School", city: "Nandurbar", address: "Mission Compound, Nandurbar", coordinates: [74.2485, 21.3785] },
+
+  // Ahilyanagar / Ahmednagar
+  { name: "Bhausaheb Firodiya High School", city: "Ahmednagar", address: "Savedi, Ahmednagar", coordinates: [74.7412, 19.0985] },
+  { name: "Sacred Heart Convent High School", city: "Ahmednagar", address: "Camp, Ahmednagar", coordinates: [74.7512, 19.0912] },
+  { name: "Residential High School", city: "Ahmednagar", address: "Delhi Gate, Ahmednagar", coordinates: [74.7385, 19.1025] },
+  { name: "Podar International School, Ahmednagar", city: "Ahmednagar", address: "Nagar-Pune Road, Ahmednagar", coordinates: [74.7625, 19.0845] },
+
+  // Chhatrapati Sambhajinagar
   { name: "Stepping Stones High School", city: "Chhatrapati Sambhajinagar", address: "Beed Bypass, Sambhajinagar", coordinates: [75.3482, 19.8654] },
-  { name: "Jain International School", city: "Solapur", address: "NH-9, Solapur", coordinates: [75.9064, 17.6599] },
+  { name: "Nath Valley School", city: "Chhatrapati Sambhajinagar", address: "Paithan Road, Sambhajinagar", coordinates: [75.3125, 19.8412] },
+  { name: "Saint Francis De Sales High School", city: "Chhatrapati Sambhajinagar", address: "Jalna Road, Sambhajinagar", coordinates: [75.3585, 19.8785] },
+  { name: "Woodridge High School", city: "Chhatrapati Sambhajinagar", address: "CIDCO, Sambhajinagar", coordinates: [75.3712, 19.8845] },
+  { name: "Podar International School, CIDCO", city: "Chhatrapati Sambhajinagar", address: "CIDCO N-3, Sambhajinagar", coordinates: [75.3812, 19.8725] },
+
+  // Jalna
+  { name: "Matsyodari Vidyalaya", city: "Jalna", address: "Devalgaon Raja Road, Jalna", coordinates: [75.8812, 19.8445] },
+  { name: "St. Mary's High School", city: "Jalna", address: "Railway Station Road, Jalna", coordinates: [75.8925, 19.8385] },
+  { name: "J.E.S. English School", city: "Jalna", address: "Jalna City", coordinates: [75.8745, 19.8495] },
+
+  // Beed
+  { name: "Champavati Vidyalaya", city: "Beed", address: "Jalna Road, Beed", coordinates: [75.7685, 18.9912] },
+  { name: "Jawahar Education Society High School", city: "Beed", address: "Beed City", coordinates: [75.7545, 18.9845] },
+  { name: "Podar International School, Beed", city: "Beed", address: "Nagar Road, Beed", coordinates: [75.7785, 18.9765] },
+
+  // Latur
+  { name: "Deshikendra High School", city: "Latur", address: "Ausa Road, Latur", coordinates: [76.5645, 18.4112] },
+  { name: "Keshavraj Vidyalaya", city: "Latur", address: "Tilak Nagar, Latur", coordinates: [76.5712, 18.4045] },
+  { name: "Shri Marwadi Rajasthan Vidyalaya", city: "Latur", address: "Latur City", coordinates: [76.5585, 18.4185] },
+  { name: "Podar International School, Latur", city: "Latur", address: "Barshi Road, Latur", coordinates: [76.5812, 18.3985] },
+
+  // Dharashiv / Osmanabad
+  { name: "Bhalchandra High School", city: "Dharashiv", address: "Dharashiv City", coordinates: [76.0485, 18.1885] },
+  { name: "Shri Chhatrapati Shivaji Vidyalaya", city: "Dharashiv", address: "Dharashiv", coordinates: [76.0395, 18.1812] },
+  { name: "Ramkrishna Paramhansa High School", city: "Dharashiv", address: "Dharashiv", coordinates: [76.0545, 18.1945] },
+
+  // Nanded
+  { name: "Mahatma Jyotirao Phule High School", city: "Nanded", address: "Vazirabad, Nanded", coordinates: [77.3245, 19.1412] },
+  { name: "Peoples High School", city: "Nanded", address: "Nanded City", coordinates: [77.3185, 19.1345] },
+  { name: "Cambridge English School", city: "Nanded", address: "VIP Road, Nanded", coordinates: [77.3312, 19.1485] },
+  { name: "Oxford International School", city: "Nanded", address: "Nanded", coordinates: [77.3112, 19.1285] },
+
+  // Parbhani
+  { name: "Shivaji High School", city: "Parbhani", address: "Station Road, Parbhani", coordinates: [76.7785, 19.2645] },
+  { name: "Bal Vidya Mandir", city: "Parbhani", address: "Nanak Colony, Parbhani", coordinates: [76.7695, 19.2585] },
+  { name: "Podar International School, Parbhani", city: "Parbhani", address: "Jintur Road, Parbhani", coordinates: [76.7845, 19.2712] },
+
+  // Hingoli
+  { name: "Adarsh High School", city: "Hingoli", address: "Akola Bypass, Hingoli", coordinates: [77.1512, 19.7212] },
+  { name: "National High School", city: "Hingoli", address: "Hingoli City", coordinates: [77.1425, 19.7145] },
+  { name: "Podar International School, Hingoli", city: "Hingoli", address: "Nanded Road, Hingoli", coordinates: [77.1585, 19.7285] },
+
+  // Buldhana
+  { name: "Prabhat Kids School", city: "Buldhana", address: "Chikhli Road, Buldhana", coordinates: [76.1885, 20.5312] },
+  { name: "Bharat Vidyalaya", city: "Buldhana", address: "Buldhana City", coordinates: [76.1795, 20.5245] },
+  { name: "Jijamata High School", city: "Buldhana", address: "Buldhana", coordinates: [76.1945, 20.5385] },
+
+  // Akola
+  { name: "Mount Carmel High School", city: "Akola", address: "Civil Lines, Akola", coordinates: [77.0125, 20.7045] },
+  { name: "Bharat Vidyalaya", city: "Akola", address: "Ramdas Peth, Akola", coordinates: [77.0045, 20.6985] },
+  { name: "Holy Cross Convent High School", city: "Akola", address: "Akola City", coordinates: [77.0185, 20.7112] },
+  { name: "School of Scholars, Akola", city: "Akola", address: "Kaulkhed, Akola", coordinates: [77.0245, 20.6912] },
+
+  // Washim
+  { name: "Rani Laxmibai Vidyalaya", city: "Washim", address: "Washim City", coordinates: [77.1385, 20.1145] },
+  { name: "R.A. Arts & Science High School", city: "Washim", address: "Patur Road, Washim", coordinates: [77.1295, 20.1085] },
+  { name: "Podar International School, Washim", city: "Washim", address: "Hingoli Road, Washim", coordinates: [77.1445, 20.1212] },
+
+  // Amravati
+  { name: "Golden Kids High School", city: "Amravati", address: "Camp, Amravati", coordinates: [77.7845, 20.9412] },
+  { name: "Manibai Gujarati High School", city: "Amravati", address: "Amravati City", coordinates: [77.7712, 20.9345] },
+  { name: "Holy Cross High School", city: "Amravati", address: "Badnera Road, Amravati", coordinates: [77.7895, 20.9485] },
+  { name: "School of Scholars, Amravati", city: "Amravati", address: "Nawathe Plot, Amravati", coordinates: [77.7645, 20.9285] },
+
+  // Yavatmal
+  { name: "Anglo Hindi High School", city: "Yavatmal", address: "Yavatmal City", coordinates: [78.1245, 20.3912] },
+  { name: "Free Church Girls High School", city: "Yavatmal", address: "Civil Lines, Yavatmal", coordinates: [78.1185, 20.3845] },
+  { name: "School of Scholars, Yavatmal", city: "Yavatmal", address: "Darda Nagar, Yavatmal", coordinates: [78.1312, 20.3985] },
+  { name: "Podar International School, Yavatmal", city: "Yavatmal", address: "Nagpur Road, Yavatmal", coordinates: [78.1112, 20.3785] },
+
+  // Wardha
+  { name: "Agnihotri High School", city: "Wardha", address: "Ramnagar, Wardha", coordinates: [78.6085, 20.7485] },
+  { name: "New English High School", city: "Wardha", address: "Civil Lines, Wardha", coordinates: [78.5995, 20.7412] },
+  { name: "Bhavan's Lloyd Vidya Niketan", city: "Wardha", address: "Bhugaon Link Road, Wardha", coordinates: [78.6145, 20.7545] },
+  { name: "School of Scholars, Wardha", city: "Wardha", address: "Sawangi Meghe, Wardha", coordinates: [78.5912, 20.7345] },
+
+  // Nagpur
+  { name: "Centre Point School", city: "Nagpur", address: "Wardhaman Nagar, Nagpur", coordinates: [79.1198, 21.1492] },
+  { name: "St. John's High School", city: "Nagpur", address: "Mohan Nagar, Nagpur", coordinates: [79.0834, 21.1612] },
+  { name: "Somalwar High School", city: "Nagpur", address: "Ramdaspeth, Nagpur", coordinates: [79.0712, 21.1345] },
+  { name: "Bhavan's Bhagwandas Purohit Vidya Mandir", city: "Nagpur", address: "Trimurti Nagar, Nagpur", coordinates: [79.0545, 21.1185] },
+  { name: "Sandipani School", city: "Nagpur", address: "Civil Lines, Nagpur", coordinates: [79.0685, 21.1545] },
+  { name: "Delhi Public School, Nagpur", city: "Nagpur", address: "Kamptee Road, Nagpur", coordinates: [79.1245, 21.2012] },
+
+  // Bhandara
+  { name: "Lal Bahadur Shastri High School", city: "Bhandara", address: "Bhandara City", coordinates: [79.6595, 21.1712] },
+  { name: "J.M. Patel School", city: "Bhandara", address: "Khat Road, Bhandara", coordinates: [79.6512, 21.1645] },
+  { name: "Nutan Maharashtra High School", city: "Bhandara", address: "Bhandara", coordinates: [79.6645, 21.1785] },
+
+  // Gondia
+  { name: "Gujarati National High School", city: "Gondia", address: "Rail Toly, Gondia", coordinates: [79.6595, 21.4645] },
+  { name: "Vivek Mandir School", city: "Gondia", address: "Gondia City", coordinates: [80.1912, 21.4585] },
+  { name: "Saraswati Vidyalaya", city: "Gondia", address: "Kudwa, Gondia", coordinates: [80.2045, 21.4685] },
+
+  // Chandrapur
+  { name: "Carmel Academy", city: "Chandrapur", address: "Bypass Road, Chandrapur", coordinates: [79.3012, 19.9645] },
+  { name: "Lokmanya Tilak Vidyalaya", city: "Chandrapur", address: "Ganj Ward, Chandrapur", coordinates: [79.2925, 19.9585] },
+  { name: "F.E.S. Girls High School", city: "Chandrapur", address: "Chandrapur City", coordinates: [79.3085, 19.9712] },
+  { name: "Mount Fort School", city: "Chandrapur", address: "Ballarpur Road, Chandrapur", coordinates: [79.2845, 19.9512] },
+
+  // Gadchiroli
+  { name: "Shivaji High School", city: "Gadchiroli", address: "Gadchiroli City", coordinates: [79.9985, 20.1885] },
+  { name: "Carmel High School", city: "Gadchiroli", address: "Chamorshi Road, Gadchiroli", coordinates: [79.9895, 20.1812] },
+  { name: "Platinum Jubilee High School", city: "Gadchiroli", address: "Gadchiroli", coordinates: [80.0045, 20.1945] },
 ];
 
 // Seed schools & deduplicate approved seed records
 async function ensureSchoolsSeeded() {
   for (const s of INITIAL_MAHARASHTRA_SCHOOLS) {
+    const escapedName = s.name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escapedCity = s.city.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const exists = await School.findOne({
-      name: { $regex: new RegExp(`^${s.name.trim()}$`, "i") },
-      city: { $regex: new RegExp(`^${s.city.trim()}$`, "i") },
+      name: { $regex: new RegExp(`^${escapedName}$`, "i") },
+      city: { $regex: new RegExp(`^${escapedCity}$`, "i") },
     });
 
     if (!exists) {
@@ -353,6 +551,28 @@ export const rejectStallReport = asyncHandler(async (req, res) => {
   await report.save();
 
   res.status(200).json({ message: "Stall report rejected", report });
+});
+
+// @desc    Admin: Mark stall as closed/removed and restore school as Safe Zone
+// @route   PUT /api/stall-reports/admin/:id/resolve
+// @access  Admin
+export const resolveStallReport = asyncHandler(async (req, res) => {
+  const { reason, note } = req.body;
+  const report = await StallReport.findById(req.params.id).populate("schoolId", "name city");
+  if (!report) {
+    res.status(404);
+    throw new Error("Stall report not found");
+  }
+
+  report.status = "resolved";
+  report.resolutionNote = note || reason || "Stall confirmed removed or permanently closed. School zone marked Safe.";
+  report.resolvedAt = new Date();
+  await report.save();
+
+  res.status(200).json({
+    message: "Stall confirmed closed/removed. School zone restored as Safe!",
+    report,
+  });
 });
 
 // @desc    Signer: Submit a request for missing city & school
