@@ -90,6 +90,7 @@ const stallReportSchema = new mongoose.Schema(
     },
     defenses: [
       {
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
         vendorName: { type: String, required: true, trim: true },
         vendorContact: { type: String, trim: true },
         reason: {

@@ -575,6 +575,51 @@ export const resolveStallReport = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Public: Get resolved stall reports (removed stalls history)
+// @route   GET /api/stall-reports/resolved/:petitionId
+// @access  Public
+export const getResolvedStallReports = asyncHandler(async (req, res) => {
+  const { petitionId } = req.params;
+  const { city } = req.query;
+
+  const query = {
+    status: "resolved",
+  };
+
+  if (petitionId && petitionId !== "all") {
+    query.petitionId = petitionId;
+  }
+
+  if (city) {
+    query.city = { $regex: new RegExp(`^${city.trim()}$`, "i") };
+  }
+
+  const reports = await StallReport.find(query)
+    .populate("schoolId", "name city address location")
+    .populate("userId", "name email profilePicture")
+    .sort({ resolvedAt: -1, updatedAt: -1 });
+
+  res.status(200).json({ reports });
+});
+
+// @desc    Admin: Delete a stall report / resolved stall record
+// @route   DELETE /api/stall-reports/admin/:id
+// @access  Admin
+export const deleteStallReport = asyncHandler(async (req, res) => {
+  const report = await StallReport.findById(req.params.id);
+  if (!report) {
+    res.status(404);
+    throw new Error("Stall report not found");
+  }
+
+  await report.deleteOne();
+
+  res.status(200).json({
+    message: "Stall report record deleted successfully.",
+    id: req.params.id,
+  });
+});
+
 // @desc    Signer: Submit a request for missing city & school
 // @route   POST /api/stall-reports/schools/request
 // @access  Private (Signer)
@@ -756,8 +801,9 @@ export const submitStallDefense = asyncHandler(async (req, res) => {
   }
 
   report.defenses.push({
+    userId: req.user?._id,
     vendorName: vendorName.trim(),
-    vendorContact: vendorContact ? vendorContact.trim() : "",
+    vendorContact: vendorContact ? vendorContact.trim() : (req.user?.mobileNumber || req.user?.email || ""),
     reason,
     explanation: explanation.trim(),
     newGoogleMapsUrl: newGoogleMapsUrl ? newGoogleMapsUrl.trim() : "",

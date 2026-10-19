@@ -8,6 +8,8 @@ import {
   approveStallReport,
   rejectStallReport,
   resolveStallReport,
+  getResolvedStallReports,
+  deleteStallReport,
   requestNewSchool,
   getPendingSchoolRequests,
   approveSchoolRequest,
@@ -29,9 +31,11 @@ router.get("/cities", getCities);
 router.get("/schools", getSchoolsByCity);
 router.get("/public-approved", getApprovedStallReports);
 router.get("/approved/:petitionId", getApprovedStallReports);
-router.post("/:id/defend", submitStallDefense);
+router.get("/resolved", getResolvedStallReports);
+router.get("/resolved/:petitionId", getResolvedStallReports);
 
-// User submission & dashboard routes (Authenticated users)
+// User submission, dispute & dashboard routes (Authenticated users)
+router.post("/:id/defend", protect, submitStallDefense);
 router.get("/my-reports", protect, getUserStallReports);
 router.post("/", protect, upload.array("images", 5), createStallReport);
 router.post("/schools/request", protect, requestNewSchool);
@@ -41,6 +45,7 @@ router.get("/admin/reports", adminAuth, getAdminStallReports);
 router.route("/admin/:id/approve").put(adminAuth, approveStallReport).post(adminAuth, approveStallReport);
 router.route("/admin/:id/reject").put(adminAuth, rejectStallReport).post(adminAuth, rejectStallReport);
 router.route("/admin/:id/resolve").put(adminAuth, resolveStallReport).post(adminAuth, resolveStallReport);
+router.delete("/admin/:id", adminAuth, deleteStallReport);
 
 // Admin School & City Requests
 router.get("/admin/school-requests", adminAuth, getPendingSchoolRequests);
