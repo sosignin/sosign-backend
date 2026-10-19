@@ -1148,7 +1148,7 @@ const deleteUserAccount = asyncHandler(async (req, res) => {
 // @route   POST /api/users/consent
 // @access  Private
 const updateConsentPreferences = asyncHandler(async (req, res) => {
-  const { marketingConsent, analyticsConsent, policyVersion } = req.body;
+  const { marketingConsent, analyticsConsent, policyVersion, noticeLanguage } = req.body;
   const user = await User.findById(req.user._id);
 
   if (!user) {
@@ -1158,39 +1158,110 @@ const updateConsentPreferences = asyncHandler(async (req, res) => {
 
   if (!user.consentRecords) {
     user.consentRecords = {
-      acceptedPrivacyPolicyVersion: "2026.1-DPDP",
+      acceptedPrivacyPolicyVersion: policyVersion || "2026.1-DPDP",
       acceptedAt: new Date(),
-      marketingConsent: true,
-      analyticsConsent: true,
+      noticeLanguage: noticeLanguage || "en",
+      consentMethod: "granular_switch",
+      marketingConsent: false,
+      analyticsConsent: false,
       consentHistory: [],
     };
   }
 
   const clientIp = getCleanIp(req);
+  const userAgent = req.headers["user-agent"] || "";
+  const currentLang = noticeLanguage || user.consentRecords.noticeLanguage || "en";
+  const activeVersion = policyVersion || user.consentRecords.acceptedPrivacyPolicyVersion || "2026.1-DPDP";
 
+  const prevMarketing = user.consentRecords.marketingConsent;
+  const prevAnalytics = user.consentRecords.analyticsConsent;
+
+  // 1. Marketing / Civic Milestone Updates Consent
   if (marketingConsent !== undefined) {
-    user.consentRecords.marketingConsent = Boolean(marketingConsent);
+    const isMarketingGranted = Boolean(marketingConsent);
+    const hasMarketingChanged =
+      prevMarketing === undefined || isMarketingGranted !== Boolean(prevMarketing);
+
+    user.consentRecords.marketingConsent = isMarketingGranted;
     user.consentRecords.consentHistory.push({
       purpose: "marketing_communications",
-      granted: Boolean(marketingConsent),
+      granted: isMarketingGranted,
       timestamp: new Date(),
-      ipAddress: String(clientIp).split(",")[0].trim(),
+      ipAddress: clientIp,
+      userAgent,
+      language: currentLang,
     });
+
+    if (hasMarketingChanged) {
+      await ConsentLog.create({
+        user: user._id,
+        userName: user.name || "Citizen",
+        userEmail: user.email || "",
+        ipAddress: clientIp,
+        userAgent,
+        consentType: "marketing_communications",
+        purpose: isMarketingGranted
+          ? "Civic Milestone & Petition Status Updates notifications under DPDP Act 2023"
+          : "Withdrawal of Civic Milestone & Petition Status Updates consent under Section 6(4) of DPDP Act 2023",
+        noticeVersion: activeVersion,
+        noticeLanguage: currentLang,
+        granted: isMarketingGranted,
+        method: "granular_switch",
+        metadata: {
+          preferenceKey: "marketingConsent",
+          action: isMarketingGranted ? "granted" : "withdrawn",
+          statutorySection: isMarketingGranted ? "DPDP Act Sec. 6" : "DPDP Act Sec. 6(4)",
+        },
+      });
+    }
   }
 
+  // 2. Privacy-Friendly Platform Performance Analytics Consent
   if (analyticsConsent !== undefined) {
-    user.consentRecords.analyticsConsent = Boolean(analyticsConsent);
+    const isAnalyticsGranted = Boolean(analyticsConsent);
+    const hasAnalyticsChanged =
+      prevAnalytics === undefined || isAnalyticsGranted !== Boolean(prevAnalytics);
+
+    user.consentRecords.analyticsConsent = isAnalyticsGranted;
     user.consentRecords.consentHistory.push({
-      purpose: "analytics_cookies",
-      granted: Boolean(analyticsConsent),
+      purpose: "analytics_tracking",
+      granted: isAnalyticsGranted,
       timestamp: new Date(),
-      ipAddress: String(clientIp).split(",")[0].trim(),
+      ipAddress: clientIp,
+      userAgent,
+      language: currentLang,
     });
+
+    if (hasAnalyticsChanged) {
+      await ConsentLog.create({
+        user: user._id,
+        userName: user.name || "Citizen",
+        userEmail: user.email || "",
+        ipAddress: clientIp,
+        userAgent,
+        consentType: "analytics_tracking",
+        purpose: isAnalyticsGranted
+          ? "Privacy-Friendly Platform Performance Analytics telemetry under DPDP Act 2023"
+          : "Withdrawal of Platform Performance Analytics consent under Section 6(4) of DPDP Act 2023",
+        noticeVersion: activeVersion,
+        noticeLanguage: currentLang,
+        granted: isAnalyticsGranted,
+        method: "granular_switch",
+        metadata: {
+          preferenceKey: "analyticsConsent",
+          action: isAnalyticsGranted ? "granted" : "withdrawn",
+          statutorySection: isAnalyticsGranted ? "DPDP Act Sec. 6" : "DPDP Act Sec. 6(4)",
+        },
+      });
+    }
   }
 
   if (policyVersion) {
     user.consentRecords.acceptedPrivacyPolicyVersion = policyVersion;
     user.consentRecords.acceptedAt = new Date();
+  }
+  if (noticeLanguage) {
+    user.consentRecords.noticeLanguage = noticeLanguage;
   }
 
   await user.save();

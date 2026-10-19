@@ -1,4 +1,5 @@
 import asyncHandler from "express-async-handler";
+import mongoose from "mongoose";
 import School from "../models/schoolModel.js";
 import StallReport from "../models/stallReportModel.js";
 import Petition from "../models/petitionModel.js";
@@ -170,7 +171,37 @@ export const createStallReport = asyncHandler(async (req, res) => {
     throw new Error("Only users who have signed this petition or the petition creator can submit a junk food stall report.");
   }
 
-  const school = await School.findById(schoolId);
+  let school = null;
+  if (mongoose.Types.ObjectId.isValid(schoolId)) {
+    school = await School.findById(schoolId);
+  }
+
+  // If schoolId is not found (or was a Google Place / custom school), find or auto-link/create it
+  if (!school && (req.body.schoolName || schoolId)) {
+    const sName = (req.body.schoolName || schoolId).trim();
+    school = await School.findOne({
+      name: { $regex: new RegExp(`^${sName}$`, "i") },
+      city: { $regex: new RegExp(`^${(city || district || "Maharashtra").trim()}$`, "i") },
+    });
+
+    if (!school) {
+      const sLat = req.body.schoolLatitude ? parseFloat(req.body.schoolLatitude) : parseFloat(latitude);
+      const sLng = req.body.schoolLongitude ? parseFloat(req.body.schoolLongitude) : parseFloat(longitude);
+      school = await School.create({
+        name: sName,
+        city: (city || district || "Maharashtra").trim(),
+        state: "Maharashtra",
+        address: req.body.schoolAddress || (city || district || "Maharashtra").trim(),
+        location: {
+          type: "Point",
+          coordinates: [sLng, sLat],
+        },
+        status: "approved",
+        isApproved: true,
+      });
+    }
+  }
+
   if (!school) {
     res.status(404);
     throw new Error("Selected school not found");
@@ -201,7 +232,7 @@ export const createStallReport = asyncHandler(async (req, res) => {
     villageTown: villageTown || "",
     landmark: landmark || "",
     grievanceId,
-    schoolId,
+    schoolId: school._id,
     shopName,
     description,
     images: Array.isArray(images) ? images : [],

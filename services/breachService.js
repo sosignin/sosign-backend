@@ -350,7 +350,7 @@ export const dispatchCitizenNotifications = async (breachId, adminUser, options 
                 Our security team and Data Protection Officer have contained the vector and statutory intimation is being processed with the <strong>Data Protection Board of India</strong>.
               </p>
               <p style="font-size: 12px; line-height: 1.5; color: #64748b;">
-                For any inquiries, contact our Grievance Redressal Officer at <a href="mailto:grievance@sosign.in" style="color: #3650AD;">grievance@sosign.in</a> or privacy cell at <a href="mailto:privacy@sosign.in" style="color: #F43676;">privacy@sosign.in</a>.
+                For any inquiries, contact our Grievance Redressal Officer at <a href="mailto:grievance@sosign.in" style="color: #3650AD;">grievance@sosign.in</a>.
               </p>
             </div>
             <div style="background: #f8fafc; padding: 16px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0;">

@@ -169,28 +169,39 @@ export const getAdminConsentLogs = asyncHandler(async (req, res) => {
 
   const { search, consentType, granted, language } = req.query;
 
-  const query = {};
+  const andClauses = [];
 
   if (consentType && consentType !== "all") {
-    query.consentType = consentType;
+    if (consentType === "consent_withdrawal") {
+      andClauses.push({
+        $or: [{ consentType: "consent_withdrawal" }, { granted: false }],
+      });
+    } else {
+      andClauses.push({ consentType });
+    }
   }
 
   if (granted !== undefined && granted !== "all") {
-    query.granted = granted === "true";
+    andClauses.push({ granted: granted === "true" });
   }
 
   if (language && language !== "all") {
-    query.noticeLanguage = language;
+    andClauses.push({ noticeLanguage: language });
   }
 
   if (search && search.trim()) {
-    query.$or = [
-      { userName: { $regex: search.trim(), $options: "i" } },
-      { userEmail: { $regex: search.trim(), $options: "i" } },
-      { ipAddress: { $regex: search.trim(), $options: "i" } },
-      { purpose: { $regex: search.trim(), $options: "i" } },
-    ];
+    const s = search.trim();
+    andClauses.push({
+      $or: [
+        { userName: { $regex: s, $options: "i" } },
+        { userEmail: { $regex: s, $options: "i" } },
+        { ipAddress: { $regex: s, $options: "i" } },
+        { purpose: { $regex: s, $options: "i" } },
+      ],
+    });
   }
+
+  const query = andClauses.length > 0 ? { $and: andClauses } : {};
 
   const total = await ConsentLog.countDocuments(query);
   const logs = await ConsentLog.find(query)
@@ -203,7 +214,9 @@ export const getAdminConsentLogs = asyncHandler(async (req, res) => {
   const registrationCount = await ConsentLog.countDocuments({ consentType: "registration" });
   const signatureCount = await ConsentLog.countDocuments({ consentType: "petition_signature" });
   const cookieCount = await ConsentLog.countDocuments({ consentType: "cookie_banner" });
-  const withdrawalCount = await ConsentLog.countDocuments({ consentType: "consent_withdrawal" });
+  const withdrawalCount = await ConsentLog.countDocuments({
+    $or: [{ consentType: "consent_withdrawal" }, { granted: false }],
+  });
 
   res.status(200).json({
     success: true,
