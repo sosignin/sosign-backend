@@ -158,6 +158,10 @@ const petitionSchema = mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: null,
     },
+    lastEditedAt: {
+      type: Date,
+      default: null,
+    },
     hidden: {
       type: Boolean,
       default: false,

@@ -959,7 +959,9 @@ const updatePetition = asyncHandler(async (req, res) => {
   // Keep the current version live and visible on the website!
   // Store the proposed changes in pendingUpdates for admin review.
   if (petition.approved) {
+    const editedTimestamp = new Date();
     petition.hasPendingUpdates = true;
+    petition.lastEditedAt = editedTimestamp;
     petition.pendingUpdates = {
       title: title !== undefined ? title : petition.title,
       decisionMakers: parsedDecisionMakers !== undefined ? parsedDecisionMakers : petition.decisionMakers,
@@ -971,8 +973,9 @@ const updatePetition = asyncHandler(async (req, res) => {
       petitionStarter: newPetitionStarter,
       constituencySettings: newConstituencySettings,
       signingRequirements: newSigningRequirements,
-      submittedAt: new Date(),
+      submittedAt: editedTimestamp,
     };
+    petition.markModified("pendingUpdates");
 
     const updatedPetition = await petition.save();
 
@@ -986,6 +989,7 @@ const updatePetition = asyncHandler(async (req, res) => {
       meta: {
         petitionTitle: petition.title,
         petitionerName: petition.petitionStarter?.name,
+        editedAt: editedTimestamp,
       },
     });
 
@@ -1004,6 +1008,7 @@ const updatePetition = asyncHandler(async (req, res) => {
       status: updatedPetition.status,
       hasPendingUpdates: true,
       pendingUpdates: updatedPetition.pendingUpdates,
+      lastEditedAt: updatedPetition.lastEditedAt,
       message: "Petition updates submitted for admin approval. The current live petition remains active.",
       createdAt: updatedPetition.createdAt,
       updatedAt: updatedPetition.updatedAt,
@@ -1024,8 +1029,24 @@ const updatePetition = asyncHandler(async (req, res) => {
 
   petition.approved = false;
   petition.status = "pending"; // Reset status to pending for initial approval
+  petition.rejectionReason = undefined;
+  petition.lastEditedAt = new Date();
 
   const updatedPetition = await petition.save();
+
+  // Trigger Admin Notification for edited/resubmitted petition
+  createAdminNotification({
+    category: "petition_approval",
+    title: "Petition Edited for Approval",
+    message: `Petition "${updatedPetition.title}" was edited by ${updatedPetition.petitionStarter?.name || "User"} and is awaiting review`,
+    link: "/dashboard/petition-approval",
+    relatedId: updatedPetition._id,
+    meta: {
+      petitionTitle: updatedPetition.title,
+      petitionerName: updatedPetition.petitionStarter?.name,
+      editedAt: updatedPetition.lastEditedAt,
+    },
+  });
 
   // Trigger static regeneration on-demand
   triggerRevalidation("/currentpetitions");
@@ -1045,6 +1066,7 @@ const updatePetition = asyncHandler(async (req, res) => {
     approved: updatedPetition.approved,
     status: updatedPetition.status,
     hasPendingUpdates: false,
+    lastEditedAt: updatedPetition.lastEditedAt,
     createdAt: updatedPetition.createdAt,
     updatedAt: updatedPetition.updatedAt,
   });

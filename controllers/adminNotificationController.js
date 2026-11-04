@@ -15,10 +15,81 @@ import Crowdfunding from "../models/crowdfundingModel.js";
 import Withdrawal from "../models/withdrawalModel.js";
 import DeletionRequest from "../models/deletionRequestModel.js";
 
+// Helper to reconcile unread comment_approval and petition_approval notifications when items have already been moderated
+const reconcileStaleCommentNotifications = async () => {
+  try {
+    const unreadNotifs = await AdminNotification.find({
+      category: { $in: ["comment_approval", "petition_approval"] },
+      isRead: { $ne: true },
+    })
+      .select("_id category relatedId link")
+      .lean();
+
+    const unreadCommentNotifs = unreadNotifs.filter((n) => n.category === "comment_approval");
+    const unreadPetitionNotifs = unreadNotifs.filter((n) => n.category === "petition_approval");
+    const staleNotifIds = [];
+
+    if (unreadCommentNotifs.length > 0) {
+      const relatedIds = unreadCommentNotifs.map((n) => n.relatedId).filter(Boolean);
+      const existingComments = await Comment.find({ _id: { $in: relatedIds } })
+        .select("_id isApproved replies.isApproved")
+        .lean();
+      const pendingCommentIdSet = new Set(
+        existingComments
+          .filter(
+            (c) =>
+              !c.isApproved ||
+              (c.replies || []).some((r) => r.isApproved === false)
+          )
+          .map((c) => String(c._id))
+      );
+
+      for (const n of unreadCommentNotifs) {
+        if (!n.relatedId || !pendingCommentIdSet.has(String(n.relatedId))) {
+          staleNotifIds.push(n._id);
+        }
+      }
+    }
+
+    if (unreadPetitionNotifs.length > 0) {
+      const relatedIds = unreadPetitionNotifs.map((n) => n.relatedId).filter(Boolean);
+      const existingPetitions = await Petition.find({ _id: { $in: relatedIds } })
+        .select("_id status approved hasPendingUpdates")
+        .lean();
+      const pendingPetitionIdSet = new Set(
+        existingPetitions
+          .filter(
+            (p) =>
+              p.status !== "rejected" &&
+              (p.status === "pending" || !p.approved || p.hasPendingUpdates)
+          )
+          .map((p) => String(p._id))
+      );
+
+      for (const n of unreadPetitionNotifs) {
+        if (!n.relatedId || !pendingPetitionIdSet.has(String(n.relatedId))) {
+          staleNotifIds.push(n._id);
+        }
+      }
+    }
+
+    if (staleNotifIds.length > 0) {
+      await AdminNotification.updateMany(
+        { _id: { $in: staleNotifIds } },
+        { $set: { isRead: true } }
+      );
+    }
+  } catch (err) {
+    // Non-blocking reconciliation
+  }
+};
+
 // @desc    Get paginated admin notifications
 // @route   GET /api/admin/notifications
 // @access  Admin
 export const getAdminNotifications = asyncHandler(async (req, res) => {
+  await reconcileStaleCommentNotifications();
+
   const page = parseInt(req.query.page, 10) || 1;
   const limit = parseInt(req.query.limit, 10) || 20;
   const skip = (page - 1) * limit;
@@ -70,7 +141,9 @@ export const getAdminNotifications = asyncHandler(async (req, res) => {
 // @route   GET /api/admin/notifications/counts
 // @access  Admin
 export const getAdminNotificationCounts = asyncHandler(async (req, res) => {
-  // Concurrently query live pending counts across all 13 monitored models
+  await reconcileStaleCommentNotifications();
+
+  // Concurrently query live pending counts across all monitored models
   const [
     petitionApprovalCount,
     commentApprovalCount,
@@ -100,8 +173,10 @@ export const getAdminNotificationCounts = asyncHandler(async (req, res) => {
       ],
     }).catch(() => 0),
 
-    // 2. Comment Approval (pending citizen comments)
-    Comment.countDocuments({ isApproved: false }).catch(() => 0),
+    // 2. Comment Approval (pending citizen comments or replies)
+    Comment.countDocuments({
+      $or: [{ isApproved: false }, { "replies.isApproved": false }],
+    }).catch(() => 0),
 
     // 3. Stall Reports (pending citizen stall reports)
     StallReport.countDocuments({ status: "pending" }).catch(() => 0),
@@ -213,10 +288,14 @@ export const markNotificationAsRead = asyncHandler(async (req, res) => {
 // @route   PUT /api/admin/notifications/mark-all-read
 // @access  Admin
 export const markAllNotificationsAsRead = asyncHandler(async (req, res) => {
-  await AdminNotification.updateMany({ isRead: false }, { isRead: true });
+  await AdminNotification.updateMany(
+    { isRead: { $ne: true } },
+    { $set: { isRead: true } }
+  );
 
   res.status(200).json({
     success: true,
+    unreadCount: 0,
     message: "All notifications marked as read",
   });
 });
@@ -287,7 +366,9 @@ export const syncPendingNotifications = asyncHandler(async (req, res) => {
   }
 
   // 2. Pending comments
-  const pendingComments = await Comment.find({ isApproved: false }).limit(50);
+  const pendingComments = await Comment.find({
+    $or: [{ isApproved: false }, { "replies.isApproved": false }],
+  }).limit(50);
   for (const c of pendingComments) {
     const exists = await AdminNotification.findOne({
       category: "comment_approval",
@@ -297,12 +378,17 @@ export const syncPendingNotifications = asyncHandler(async (req, res) => {
       await AdminNotification.create({
         category: "comment_approval",
         title: "New Comment for Approval",
-        message: `User comment "${c.content.slice(0, 50)}..." awaiting approval`,
-        link: "/dashboard/comment-approval",
+        message: `User comment "${(c.content || "").slice(0, 50)}..." awaiting approval`,
+        link: `/dashboard/comment-approval?commentId=${c._id}`,
         relatedId: c._id,
         createdAt: c.createdAt || new Date(),
         isRead: false,
       });
+      createdCount++;
+    } else if (exists.isRead) {
+      exists.isRead = false;
+      exists.link = `/dashboard/comment-approval?commentId=${c._id}`;
+      await exists.save();
       createdCount++;
     }
   }

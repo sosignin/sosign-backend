@@ -8,6 +8,7 @@ import generateUserToken from "../utils/generateToken.js";
 import Plan from "../models/planModel.js";
 import { triggerRevalidation } from "../utils/revalidateUtils.js";
 import Notification from "../models/notificationModel.js";
+import AdminNotification from "../models/adminNotificationModel.js";
 import Visitor from "../models/visitorModel.js";
 import Traffic from "../models/trafficModel.js";
 import Blog from "../models/blogModel.js";
@@ -174,10 +175,11 @@ export const toggleUserSuspension = async (req, res) => {
   }
 };
 
-// Get all unapproved petitions (including pending updates for live petitions)
+// Get all unapproved petitions (including pending updates for live petitions, excluding rejected petitions)
 export const getUnapprovedPetitions = async (req, res) => {
   try {
     const petitions = await Petition.find({
+      status: { $ne: "rejected" },
       $or: [
         { status: "pending" },
         { approved: false },
@@ -186,7 +188,26 @@ export const getUnapprovedPetitions = async (req, res) => {
     })
       .populate("petitionStarter.user", "name email")
       .populate("motherPetition", "title slug petitionDetails.image")
-      .sort({ updatedAt: -1, createdAt: -1 });
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .lean();
+
+    // Sort by effective submission/edit date (newest first)
+    petitions.sort((a, b) => {
+      const dateA = new Date(
+        (a.hasPendingUpdates && a.pendingUpdates?.submittedAt) ||
+          a.lastEditedAt ||
+          a.createdAt ||
+          0
+      );
+      const dateB = new Date(
+        (b.hasPendingUpdates && b.pendingUpdates?.submittedAt) ||
+          b.lastEditedAt ||
+          b.createdAt ||
+          0
+      );
+      return dateB - dateA;
+    });
+
     res.status(200).json({ petitions });
   } catch (error) {
     console.error("Error fetching unapproved petitions:", error);
@@ -226,13 +247,24 @@ export const approvePetition = async (req, res) => {
       if (updates.requestedSigners !== undefined) petition.requestedSigners = updates.requestedSigners;
       if (updates.country !== undefined) petition.country = updates.country;
       if (updates.categories !== undefined) petition.categories = updates.categories;
-      if (updates.petitionDetails !== undefined) petition.petitionDetails = updates.petitionDetails;
+      if (updates.petitionDetails !== undefined) {
+        const existingDetails = petition.petitionDetails?.toObject
+          ? petition.petitionDetails.toObject()
+          : petition.petitionDetails || {};
+        petition.petitionDetails = {
+          ...existingDetails,
+          ...updates.petitionDetails,
+        };
+      }
       if (updates.socialLinks !== undefined) petition.socialLinks = updates.socialLinks;
       if (updates.petitionStarter !== undefined) {
+        const existingStarter = petition.petitionStarter?.toObject
+          ? petition.petitionStarter.toObject()
+          : petition.petitionStarter || {};
         petition.petitionStarter = {
-          ...petition.petitionStarter,
+          ...existingStarter,
           ...updates.petitionStarter,
-          user: petition.petitionStarter.user, // Preserve creator
+          user: existingStarter.user || petition.petitionStarter?.user, // Preserve creator
         };
       }
       if (updates.constituencySettings !== undefined) petition.constituencySettings = updates.constituencySettings;
@@ -240,6 +272,7 @@ export const approvePetition = async (req, res) => {
 
       petition.hasPendingUpdates = false;
       petition.pendingUpdates = null;
+      petition.markModified("pendingUpdates");
     }
 
     petition.approved = true;
@@ -247,16 +280,28 @@ export const approvePetition = async (req, res) => {
     petition.rejectionReason = undefined;
     await petition.save();
 
-    // Create notification
-    await Notification.create({
-      recipient: petition.petitionStarter.user,
-      title: wasUpdate ? "Petition Updates Approved" : "Petition Approved",
-      message: wasUpdate
-        ? `Your updates for petition "${petition.title}" have been approved and are now live!`
-        : `Your petition "${petition.title}" has been approved and is now live!`,
-      type: "success",
-      relatedId: petition._id,
-    });
+    // Mark related AdminNotification as read
+    await AdminNotification.updateMany(
+      { category: "petition_approval", relatedId: petition._id },
+      { $set: { isRead: true, "meta.status": "approved" } }
+    ).catch(() => {});
+
+    // Create user notification
+    if (petition.petitionStarter?.user) {
+      try {
+        await Notification.create({
+          recipient: petition.petitionStarter.user,
+          title: wasUpdate ? "Petition Updates Approved" : "Petition Approved",
+          message: wasUpdate
+            ? `Your updates for petition "${petition.title}" have been approved and are now live!`
+            : `Your petition "${petition.title}" has been approved and is now live!`,
+          type: "success",
+          relatedId: petition._id,
+        });
+      } catch (notifErr) {
+        console.error("Failed to create user notification on petition approval:", notifErr);
+      }
+    }
 
     // Trigger Next.js static regeneration on-demand
     triggerRevalidation("/currentpetitions");
@@ -276,7 +321,7 @@ export const approvePetition = async (req, res) => {
 // Reject a petition or reject pending petition updates
 export const rejectPetition = async (req, res) => {
   try {
-    const { reason } = req.body;
+    const { reason } = req.body || {};
     const petition = await Petition.findById(req.params.id);
     if (!petition) {
       return res.status(404).json({ message: "Petition not found" });
@@ -287,15 +332,27 @@ export const rejectPetition = async (req, res) => {
     if (petition.approved && petition.hasPendingUpdates) {
       petition.hasPendingUpdates = false;
       petition.pendingUpdates = null;
+      petition.markModified("pendingUpdates");
       await petition.save();
 
-      await Notification.create({
-        recipient: petition.petitionStarter.user,
-        title: "Petition Updates Rejected",
-        message: `Your requested changes for petition "${petition.title}" were not approved (${reason || "Does not meet guidelines"}). The current version of your petition remains live.`,
-        type: "error",
-        relatedId: petition._id,
-      });
+      await AdminNotification.updateMany(
+        { category: "petition_approval", relatedId: petition._id },
+        { $set: { isRead: true, "meta.status": "updates_rejected" } }
+      ).catch(() => {});
+
+      if (petition.petitionStarter?.user) {
+        try {
+          await Notification.create({
+            recipient: petition.petitionStarter.user,
+            title: "Petition Updates Rejected",
+            message: `Your requested changes for petition "${petition.title}" were not approved (${reason || "Does not meet guidelines"}). The current version of your petition remains live.`,
+            type: "error",
+            relatedId: petition._id,
+          });
+        } catch (notifErr) {
+          console.error("Failed to create user notification on updates rejection:", notifErr);
+        }
+      }
 
       return res.status(200).json({
         message: "Pending updates rejected. Existing live petition remains active.",
@@ -306,8 +363,16 @@ export const rejectPetition = async (req, res) => {
 
     petition.approved = false;
     petition.status = "rejected";
+    petition.hasPendingUpdates = false;
+    petition.pendingUpdates = null;
+    petition.markModified("pendingUpdates");
     petition.rejectionReason = reason || "Does not meet our community guidelines.";
     await petition.save();
+
+    await AdminNotification.updateMany(
+      { category: "petition_approval", relatedId: petition._id },
+      { $set: { isRead: true, "meta.status": "rejected" } }
+    ).catch(() => {});
 
     // Credit back 5 points to user's wallet if not already rejected
     if (!wasAlreadyRejected && petition.petitionStarter?.user) {
@@ -328,13 +393,19 @@ export const rejectPetition = async (req, res) => {
     }
 
     // Create notification
-    await Notification.create({
-      recipient: petition.petitionStarter.user,
-      title: "Petition Rejected",
-      message: `Your petition "${petition.title}" was rejected. Reason: ${petition.rejectionReason}. 5 points have been credited back to your wallet.`,
-      type: "error",
-      relatedId: petition._id,
-    });
+    if (petition.petitionStarter?.user) {
+      try {
+        await Notification.create({
+          recipient: petition.petitionStarter.user,
+          title: "Petition Rejected",
+          message: `Your petition "${petition.title}" was rejected. Reason: ${petition.rejectionReason}. 5 points have been credited back to your wallet.`,
+          type: "error",
+          relatedId: petition._id,
+        });
+      } catch (notifErr) {
+        console.error("Failed to create user notification on petition rejection:", notifErr);
+      }
+    }
 
     res.status(200).json({ message: "Petition rejected successfully and points refunded." });
   } catch (error) {
@@ -355,6 +426,11 @@ export const resetPetition = async (req, res) => {
     petition.approved = false;
     petition.rejectionReason = undefined;
     await petition.save();
+
+    await AdminNotification.updateMany(
+      { category: "petition_approval", relatedId: petition._id },
+      { $set: { isRead: false, "meta.status": "pending" } }
+    ).catch(() => {});
 
     res.status(200).json({ message: "Petition reset to pending" });
   } catch (error) {

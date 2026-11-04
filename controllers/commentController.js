@@ -1,8 +1,30 @@
 import asyncHandler from "express-async-handler";
 import Comment from "../models/commentModel.js";
 import Petition from "../models/petitionModel.js";
+import "../models/userModel.js";
+import AdminNotification from "../models/adminNotificationModel.js";
 import { checkAbusiveContent } from "../utils/abusiveWords.js";
 import createAdminNotification from "../utils/adminNotifier.js";
+
+// Helper to keep AdminNotification read status in sync when comments/replies are moderated
+const syncCommentNotificationState = async (commentId, actionStatus = "resolved") => {
+  try {
+    if (!commentId) return;
+    const comment = await Comment.findById(commentId).lean();
+    const hasPending =
+      comment &&
+      (!comment.isApproved || (comment.replies || []).some((r) => !r.isApproved));
+
+    if (!hasPending) {
+      await AdminNotification.updateMany(
+        { category: "comment_approval", relatedId: commentId },
+        { $set: { isRead: true, "meta.status": actionStatus } }
+      );
+    }
+  } catch (err) {
+    console.error("[syncCommentNotificationState] Error:", err.message);
+  }
+};
 
 // @desc    Create a new comment
 // @route   POST /api/comments
@@ -45,12 +67,14 @@ const createComment = asyncHandler(async (req, res) => {
     category: "comment_approval",
     title: "New Comment for Approval",
     message: `${req.user?.name || "A user"} commented on "${petition.title}": "${content.trim().slice(0, 60)}..."`,
-    link: "/dashboard/comment-approval",
+    link: `/dashboard/comment-approval?commentId=${comment._id}`,
     relatedId: comment._id,
     meta: {
+      commentId: comment._id,
       petitionId: petition._id,
       petitionTitle: petition.title,
       userName: req.user?.name,
+      status: "pending",
     },
   });
 
@@ -194,6 +218,10 @@ const deleteComment = asyncHandler(async (req, res) => {
   }
 
   await Comment.findByIdAndDelete(req.params.id);
+  await AdminNotification.updateMany(
+    { category: "comment_approval", relatedId: req.params.id },
+    { $set: { isRead: true, "meta.status": "deleted" } }
+  );
 
   res.status(200).json({
     success: true,
@@ -294,6 +322,24 @@ const addReply = asyncHandler(async (req, res) => {
 
   const newReply = populatedComment.replies[populatedComment.replies.length - 1];
 
+  // Trigger Admin Notification for reply approval
+  createAdminNotification({
+    category: "comment_approval",
+    title: "New Comment Reply for Approval",
+    message: `${req.user?.name || "Petition Creator"} replied on "${petition.title}": "${content.trim().slice(0, 60)}..."`,
+    link: `/dashboard/comment-approval?commentId=reply-${comment._id}-${newReply._id}`,
+    relatedId: comment._id,
+    meta: {
+      commentId: comment._id,
+      replyId: newReply._id,
+      isReply: true,
+      petitionId: petition._id,
+      petitionTitle: petition.title,
+      userName: req.user?.name,
+      status: "pending",
+    },
+  });
+
   res.status(201).json({
     success: true,
     message: "Reply submitted for approval",
@@ -383,8 +429,15 @@ const deleteReply = asyncHandler(async (req, res) => {
     throw new Error("Not authorized to delete this reply");
   }
 
-  reply.remove();
+  if (typeof reply.deleteOne === "function") {
+    reply.deleteOne();
+  } else if (typeof reply.remove === "function") {
+    reply.remove();
+  } else {
+    comment.replies.pull(replyId);
+  }
   await comment.save();
+  await syncCommentNotificationState(comment._id, "deleted");
 
   res.status(200).json({
     success: true,
@@ -468,9 +521,11 @@ const getUserCommentsPaginated = asyncHandler(async (req, res) => {
 });
 
 // @desc    Get all unapproved comments and replies (Admin only)
-// @route   GET /api/admin/comments/unapproved
+// @route   GET /api/comments/admin/unapproved
 // @access  Admin
 const getUnapprovedComments = asyncHandler(async (req, res) => {
+  const { commentId } = req.query;
+
   // Find comments that are unapproved OR have unapproved replies
   const comments = await Comment.find({
     $or: [{ isApproved: false }, { "replies.isApproved": false }],
@@ -510,9 +565,277 @@ const getUnapprovedComments = asyncHandler(async (req, res) => {
   // Sort by date (newest first)
   unapprovedItems.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
+  // If a specific commentId was requested (e.g. from clicking a notification), lookup its live state
+  let targetComment = null;
+  if (commentId) {
+    try {
+      if (String(commentId).startsWith("reply-")) {
+        const parts = String(commentId).split("-");
+        const parentId = parts[1];
+        const rId = parts[2];
+        const parentDoc = await Comment.findById(parentId)
+          .populate("user", "name email designation")
+          .populate("petition")
+          .populate("replies.user", "name email designation")
+          .lean();
+        if (parentDoc) {
+          const replyDoc = (parentDoc.replies || []).find(
+            (r) => String(r._id) === String(rId)
+          );
+          if (replyDoc) {
+            targetComment = {
+              _id: `reply-${parentDoc._id}-${replyDoc._id}`,
+              content: `[REPLY] ${replyDoc.content}`,
+              user: replyDoc.user,
+              createdAt: replyDoc.createdAt,
+              isApproved: replyDoc.isApproved,
+              approvedAt: replyDoc.approvedAt,
+              approvedBy: replyDoc.approvedBy,
+              petition: parentDoc.petition,
+              isReply: true,
+              parentCommentId: parentDoc._id,
+              replyId: replyDoc._id,
+            };
+          }
+        }
+      } else {
+        const found = await Comment.findById(commentId)
+          .populate("user", "name email designation")
+          .populate("petition")
+          .populate("replies.user", "name email designation")
+          .lean();
+        if (found) {
+          targetComment = found;
+        }
+      }
+    } catch (err) {
+      // Invalid ObjectId or not found
+    }
+  }
+
   res.status(200).json({
     success: true,
     comments: unapprovedItems,
+    targetComment,
+  });
+});
+
+// @desc    Get approved comments history grouped by petition (Admin only)
+// @route   GET /api/comments/admin/approved
+// @access  Admin
+const getApprovedCommentsHistory = asyncHandler(async (req, res) => {
+  const comments = await Comment.find({
+    $or: [{ isApproved: true }, { "replies.isApproved": true }],
+  })
+    .populate("user", "name email designation")
+    .populate(
+      "petition",
+      "title slug categories petitionDetails numberOfSignatures petitionStarter status approved createdAt"
+    )
+    .populate("replies.user", "name email designation")
+    .sort({ approvedAt: -1, createdAt: -1 })
+    .lean();
+
+  const approvedComments = [];
+  const petitionMap = new Map();
+
+  const ensurePetitionGroup = (petitionDoc) => {
+    const petId = petitionDoc?._id ? String(petitionDoc._id) : "deleted-petition";
+    if (!petitionMap.has(petId)) {
+      petitionMap.set(petId, {
+        petitionId: petId,
+        petition: petitionDoc
+          ? {
+              _id: petitionDoc._id,
+              title: petitionDoc.title || "Untitled Petition",
+              slug: petitionDoc.slug,
+              categories: petitionDoc.categories || [],
+              category:
+                petitionDoc.categories?.[0] ||
+                petitionDoc.petitionCategory ||
+                "General",
+              numberOfSignatures:
+                petitionDoc.numberOfSignatures ??
+                petitionDoc.signatureCount ??
+                0,
+              image: petitionDoc.petitionDetails?.image || null,
+              starterName:
+                petitionDoc.petitionStarter?.name ||
+                petitionDoc.user?.name ||
+                "Citizen",
+              status: petitionDoc.status,
+              approved: petitionDoc.approved,
+              createdAt: petitionDoc.createdAt,
+            }
+          : {
+              _id: null,
+              title: "Deleted / Archived Petition",
+              slug: null,
+              categories: [],
+              category: "Archived",
+              numberOfSignatures: 0,
+              image: null,
+              starterName: "Unknown",
+              status: "archived",
+              approved: false,
+            },
+        comments: [],
+        totalApproved: 0,
+        latestApprovedAt: null,
+      });
+    }
+    return petitionMap.get(petId);
+  };
+
+  comments.forEach((comment) => {
+    const group = ensurePetitionGroup(comment.petition);
+
+    if (comment.isApproved) {
+      const item = {
+        _id: comment._id,
+        content: comment.content,
+        user: comment.user,
+        createdAt: comment.createdAt,
+        approvedAt: comment.approvedAt || comment.updatedAt || comment.createdAt,
+        approvedBy: comment.approvedBy || "Admin",
+        isApproved: true,
+        isReply: false,
+        likesCount: comment.likes?.length || 0,
+        petition: group.petition,
+      };
+      approvedComments.push(item);
+      group.comments.push(item);
+      group.totalApproved += 1;
+
+      const itemDate = new Date(item.approvedAt || item.createdAt);
+      if (!group.latestApprovedAt || itemDate > new Date(group.latestApprovedAt)) {
+        group.latestApprovedAt = itemDate;
+      }
+    }
+
+    if (comment.replies && comment.replies.length > 0) {
+      comment.replies.forEach((reply) => {
+        if (reply.isApproved) {
+          const replyItem = {
+            _id: `reply-${comment._id}-${reply._id}`,
+            content: reply.content,
+            parentContent: comment.content,
+            user: reply.user,
+            createdAt: reply.createdAt,
+            approvedAt: reply.approvedAt || reply.createdAt,
+            approvedBy: reply.approvedBy || "Admin",
+            isApproved: true,
+            isReply: true,
+            parentCommentId: comment._id,
+            replyId: reply._id,
+            petition: group.petition,
+          };
+          approvedComments.push(replyItem);
+          group.comments.push(replyItem);
+          group.totalApproved += 1;
+
+          const replyDate = new Date(replyItem.approvedAt || replyItem.createdAt);
+          if (
+            !group.latestApprovedAt ||
+            replyDate > new Date(group.latestApprovedAt)
+          ) {
+            group.latestApprovedAt = replyDate;
+          }
+        }
+      });
+    }
+  });
+
+  // Sort flat list newest approval first
+  approvedComments.sort(
+    (a, b) =>
+      new Date(b.approvedAt || b.createdAt) -
+      new Date(a.approvedAt || a.createdAt)
+  );
+
+  // Sort comments within each petition group and sort petition groups by latest approval
+  const petitionsHistory = Array.from(petitionMap.values())
+    .filter((g) => g.comments.length > 0)
+    .map((group) => {
+      group.comments.sort(
+        (a, b) =>
+          new Date(b.approvedAt || b.createdAt) -
+          new Date(a.approvedAt || a.createdAt)
+      );
+      return group;
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.latestApprovedAt || 0) - new Date(a.latestApprovedAt || 0)
+    );
+
+  res.status(200).json({
+    success: true,
+    totalApprovedComments: approvedComments.length,
+    totalPetitionsWithComments: petitionsHistory.length,
+    approvedComments,
+    petitionsHistory,
+  });
+});
+
+// @desc    Unapprove an approved comment or reply (move back to pending approval)
+// @route   PUT /api/comments/admin/:id/unapprove
+// @access  Admin
+const unapproveComment = asyncHandler(async (req, res) => {
+  const id = req.params.id;
+
+  if (id.startsWith("reply-")) {
+    const parts = id.split("-");
+    const commentId = parts[1];
+    const replyId = parts[2];
+
+    const comment = await Comment.findById(commentId);
+    if (!comment) {
+      res.status(404);
+      throw new Error("Comment not found");
+    }
+
+    const reply = comment.replies.id(replyId);
+    if (!reply) {
+      res.status(404);
+      throw new Error("Reply not found");
+    }
+
+    reply.isApproved = false;
+    reply.approvedAt = null;
+    reply.approvedBy = null;
+    await comment.save();
+
+    await AdminNotification.updateMany(
+      { category: "comment_approval", relatedId: comment._id },
+      { $set: { isRead: false, "meta.status": "pending" } }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Reply moved back to pending approval",
+    });
+  }
+
+  const comment = await Comment.findById(id);
+  if (!comment) {
+    res.status(404);
+    throw new Error("Comment not found");
+  }
+
+  comment.isApproved = false;
+  comment.approvedAt = null;
+  comment.approvedBy = null;
+  await comment.save();
+
+  await AdminNotification.updateMany(
+    { category: "comment_approval", relatedId: comment._id },
+    { $set: { isRead: false, "meta.status": "pending" } }
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Comment moved back to pending approval",
   });
 });
 
@@ -626,9 +949,15 @@ const approveReply = asyncHandler(async (req, res) => {
 
   reply.isApproved = true;
   reply.approvedAt = new Date();
-  reply.approvedBy = req.admin?.username || "admin";
+  reply.approvedBy =
+    req.admin?.name ||
+    req.admin?.username ||
+    req.admin?.email ||
+    req.user?.name ||
+    "Admin";
 
   await comment.save();
+  await syncCommentNotificationState(comment._id, "approved");
 
   res.status(200).json({
     success: true,
@@ -656,8 +985,15 @@ const rejectReply = asyncHandler(async (req, res) => {
     throw new Error("Reply not found");
   }
 
-  reply.remove();
+  if (typeof reply.deleteOne === "function") {
+    reply.deleteOne();
+  } else if (typeof reply.remove === "function") {
+    reply.remove();
+  } else {
+    comment.replies.pull(replyId);
+  }
   await comment.save();
+  await syncCommentNotificationState(comment._id, "rejected");
 
   res.status(200).json({
     success: true,
@@ -704,9 +1040,12 @@ const approveComment = asyncHandler(async (req, res) => {
 
     reply.isApproved = true;
     reply.approvedAt = new Date();
-    reply.approvedBy = isAdminAuth ? (req.admin.username || "admin") : (req.user.name || "user");
+    reply.approvedBy = isAdminAuth
+      ? req.admin.name || req.admin.username || req.admin.email || "Admin"
+      : req.user?.name || "Petition Creator";
 
     await comment.save();
+    await syncCommentNotificationState(comment._id, "approved");
 
     return res.status(200).json({
       success: true,
@@ -736,9 +1075,12 @@ const approveComment = asyncHandler(async (req, res) => {
 
   comment.isApproved = true;
   comment.approvedAt = new Date();
-  comment.approvedBy = isAdminAuth ? (req.admin.username || "admin") : (req.user.name || "user");
+  comment.approvedBy = isAdminAuth
+    ? req.admin.name || req.admin.username || req.admin.email || "Admin"
+    : req.user?.name || "Petition Creator";
 
   await comment.save();
+  await syncCommentNotificationState(comment._id, "approved");
 
   res.status(200).json({
     success: true,
@@ -783,8 +1125,15 @@ const rejectComment = asyncHandler(async (req, res) => {
       }
     }
 
-    reply.remove();
+    if (typeof reply.deleteOne === "function") {
+      reply.deleteOne();
+    } else if (typeof reply.remove === "function") {
+      reply.remove();
+    } else {
+      comment.replies.pull(replyId);
+    }
     await comment.save();
+    await syncCommentNotificationState(comment._id, "rejected");
 
     return res.status(200).json({
       success: true,
@@ -813,6 +1162,10 @@ const rejectComment = asyncHandler(async (req, res) => {
   }
 
   await Comment.findByIdAndDelete(id);
+  await AdminNotification.updateMany(
+    { category: "comment_approval", relatedId: id },
+    { $set: { isRead: true, "meta.status": "rejected" } }
+  );
 
   res.status(200).json({
     success: true,
@@ -832,6 +1185,8 @@ export {
   getUserRecentComments,
   getUserCommentsPaginated,
   getUnapprovedComments,
+  getApprovedCommentsHistory,
+  unapproveComment,
   getPendingCommentsForPetition,
   approveComment,
   rejectComment,

@@ -11,6 +11,8 @@ import {
   getUserRecentComments,
   getUserCommentsPaginated,
   getUnapprovedComments,
+  getApprovedCommentsHistory,
+  unapproveComment,
   getPendingCommentsForPetition,
   approveComment,
   rejectComment,
@@ -24,7 +26,9 @@ const router = express.Router();
 
 // Admin routes (specific path with /admin/)
 router.get("/admin/unapproved", adminAuth, getUnapprovedComments);
+router.get("/admin/approved", adminAuth, getApprovedCommentsHistory);
 router.route("/admin/:id/approve").put(adminAuth, approveComment).post(adminAuth, approveComment);
+router.route("/admin/:id/unapprove").put(adminAuth, unapproveComment).post(adminAuth, unapproveComment);
 router.route("/admin/:id/reject").put(adminAuth, rejectComment).delete(adminAuth, rejectComment).post(adminAuth, rejectComment);
 
 // Petition creator routes for managing comments - EXPLICIT ROUTE
