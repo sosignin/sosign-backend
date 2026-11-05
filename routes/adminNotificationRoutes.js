@@ -8,6 +8,7 @@ import {
   deleteNotification,
   clearAllNotifications,
   syncPendingNotifications,
+  sendTestPushNotification,
 } from "../controllers/adminNotificationController.js";
 
 const router = express.Router();
@@ -20,6 +21,9 @@ router.get("/counts", getAdminNotificationCounts);
 
 // Sync pending items from all collections into notifications feed
 router.post("/sync-pending", syncPendingNotifications);
+
+// Send a test push notification
+router.post("/test-push", sendTestPushNotification);
 
 // Mark all as read
 router.put("/mark-all-read", markAllNotificationsAsRead);

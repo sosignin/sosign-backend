@@ -63,7 +63,7 @@ const createComment = asyncHandler(async (req, res) => {
   await comment.populate("user", "name email designation");
 
   // Trigger Admin Notification
-  createAdminNotification({
+  await createAdminNotification({
     category: "comment_approval",
     title: "New Comment for Approval",
     message: `${req.user?.name || "A user"} commented on "${petition.title}": "${content.trim().slice(0, 60)}..."`,
@@ -323,7 +323,7 @@ const addReply = asyncHandler(async (req, res) => {
   const newReply = populatedComment.replies[populatedComment.replies.length - 1];
 
   // Trigger Admin Notification for reply approval
-  createAdminNotification({
+  await createAdminNotification({
     category: "comment_approval",
     title: "New Comment Reply for Approval",
     message: `${req.user?.name || "Petition Creator"} replied on "${petition.title}": "${content.trim().slice(0, 60)}..."`,

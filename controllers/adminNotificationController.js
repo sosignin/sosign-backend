@@ -1,5 +1,6 @@
 import asyncHandler from "express-async-handler";
 import AdminNotification from "../models/adminNotificationModel.js";
+import { sendOneSignalPushNotification } from "../utils/adminNotifier.js";
 import Petition from "../models/petitionModel.js";
 import Comment from "../models/commentModel.js";
 import StallReport from "../models/stallReportModel.js";
@@ -637,5 +638,41 @@ export const syncPendingNotifications = asyncHandler(async (req, res) => {
     success: true,
     message: `Sync complete. Generated ${createdCount} new notifications from pending records.`,
     createdCount,
+  });
+});
+
+// @desc    Trigger a test desktop push notification (OneSignal + AdminNotification)
+// @route   POST /api/admin/notifications/test-push
+// @access  Admin
+export const sendTestPushNotification = asyncHandler(async (req, res) => {
+  const title = req.body?.title || "SOSign Admin Desktop Alert 🔔";
+  const message =
+    req.body?.message ||
+    "Desktop push notifications are active! You will receive real-time alerts for new petitions, comments, and reports.";
+  const link = req.body?.link || "/dashboard/notifications";
+
+  const notification = await AdminNotification.create({
+    category: "system",
+    title,
+    message,
+    link,
+    isRead: false,
+  });
+
+  const oneSignalResult = await sendOneSignalPushNotification({
+    title,
+    message,
+    link,
+    category: "system",
+    notificationId: notification._id,
+  });
+
+  res.status(200).json({
+    success: true,
+    message: oneSignalResult.sent
+      ? "Test desktop push notification sent via OneSignal & browser!"
+      : "Test desktop notification created and dispatched to browser!",
+    notification,
+    oneSignal: oneSignalResult,
   });
 });
